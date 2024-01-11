@@ -36,3 +36,22 @@ SELECT md.chembl_id AS compound_chembl_id,
     AND act.pchembl_value IS NOT NULL
 
 ```
+
+This query takes a while to execute! Make sure to save it to a csv in `temp_data` so you only need to execute this once.
+
+This dataframe has many columns, but here are some important ones:
+- `canonical_smiles`: The SMILES string representing the current molecule. Each _unique_ SMILES should correspond to a row in the `molecules` table. A first stab at creating the table will create a dataframe whose rows are the unique smiles, and with all the other rows (`has_conformer`, etc..) set to None.
+- `protein_accession`: the UniProt ID of the protein target
+- `standard_type`, `standard_relation`, `standard_units`, `standard_value`, and `pchembl_value`: the type of the activity measurement (IC50, Ki, etc), the relationship ('=', '>', or '<'; we only care about '='), the units (eg nM), the value, and the -log10 of the value (a more useful value in eg ML training)
+
+Once we have the `molecules` table, the next steps are:
+
+- Creating the `proteins` table. We want each row to correspond to a unqiue protein sequence. You can get the sequences from the uniprot IDs like [this](https://stackoverflow.com/questions/52569622/protein-sequence-from-uniprot-protein-id-python)
+- Creating the `activities` table.
+- Adding in the extra molecule information to `molecules`
+
+# Loading ProBis data
+
+Creating the actual `binding_sites` and associated files properly requires the `components` table, which we don't have yet. To prepare ourselves for when that occurs, we want a script that goes through all the pockets in ProBis and prints the pdb id, chain id, and residue ids of each site. Once we have all that info, creating the tables will be easy.
+
+# Loading 
