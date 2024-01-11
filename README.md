@@ -54,4 +54,6 @@ Once we have the `molecules` table, the next steps are:
 
 Creating the actual `binding_sites` and associated files properly requires the `components` table, which we don't have yet. To prepare ourselves for when that occurs, we want a script that goes through all the pockets in ProBis and prints the pdb id, chain id, and residue ids of each site. Once we have all that info, creating the tables will be easy.
 
+You can find all the ProBis data at `/proj/kpoplab/ProbisDock/` on longleaf
+
 # Loading 
