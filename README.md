@@ -37,18 +37,25 @@ SELECT md.chembl_id AS compound_chembl_id,
 
 ```
 
-This query takes a while to execute! Make sure to save it to a csv in `temp_data` so you only need to execute this once.
+This query takes a while to execute! Make sure to save it to a csv in `temp_data` so you only need to execute this once. Notice how we do it in the original BigBind -- it iteratively saves the results of the query to a csv file. It takes a while so I'd recommend breaking out of this loop early when debugging and making sure the rest of your code works with a truncated version of the resulting dataframe. We can load the _whole_ database in later once you've worked out the kinks in the code.
 
 This dataframe has many columns, but here are some important ones:
-- `canonical_smiles`: The SMILES string representing the current molecule. Each _unique_ SMILES should correspond to a row in the `molecules` table. A first stab at creating the table will create a dataframe whose rows are the unique smiles, and with all the other rows (`has_conformer`, etc..) set to None.
+- `canonical_smiles`: The SMILES string representing the current molecule. Each _unique_ SMILES should correspond to a row in the `molecules` table.
 - `protein_accession`: the UniProt ID of the protein target
 - `standard_type`, `standard_relation`, `standard_units`, `standard_value`, and `pchembl_value`: the type of the activity measurement (IC50, Ki, etc), the relationship ('=', '>', or '<'; we only care about '='), the units (eg nM), the value, and the -log10 of the value (a more useful value in eg ML training)
+
+ A first stab at creating the table will create a dataframe whose rows are the unique smiles, and with all the other rows (`has_conformer`, etc..) set to None. 
 
 Once we have the `molecules` table, the next steps are:
 
 - Creating the `proteins` table. We want each row to correspond to a unqiue protein sequence. You can get the sequences from the uniprot IDs like [this](https://stackoverflow.com/questions/52569622/protein-sequence-from-uniprot-protein-id-python)
-- Creating the `activities` table.
-- Adding in the extra molecule information to `molecules`
+- Creating the `activities` table. Basically put in the `standard_type`, `standard_relation`, `standard_units`, `standard_value`, and `pchembl_value` for each activity in the csv you created, along with references to the relevant molecule and 
+- Adding in the extra molecule information to `molecules`. This will involve looping over the molecules, creating RDKit objects from their smiles strings, and adding computed information:
+    - `molecular_weight`: self explanatory
+    - `zinc_elements`: boolean, true if the molecule contains _only_ elements in the set {"H", "C", "N", "O", "F", "S", "P", "Cl", "Br", "I"}, false otherwise. (ZINC here refers to the database that only contains molecules with these elemenets, not the element itself).
+    - `has_conformer`. Use RDKit to generate a 3D conformer for each molecule and save it to an sdf file in `data`. Eg `data/{molecule_id}.sdf`. Sometimes this will fail -- set `has_conformer` to false in this case.
+
+Each of these tasks should be nice, reasonably well-commented functions. Imagine a function `load_chembl` which itself calls functions like `download_chembl`, `create_molecules`, `create_proteins`, `create_activities`, etc...
 
 # Loading ProBis data
 
