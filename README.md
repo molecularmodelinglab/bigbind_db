@@ -63,4 +63,14 @@ Creating the actual `binding_sites` and associated files properly requires the `
 
 You can find all the ProBis data at `/proj/kpoplab/ProbisDock/` on longleaf
 
-# Loading 
+# Loading PDB MMTF data
+
+You can get the types of the "entities" via:
+```python
+mmtf_file = mmtf.MMTFFile.read(file_path)
+mmtf_file.get("entityList")
+```
+
+MMTF spec is [here](https://github.com/rcsb/mmtf/blob/master/spec.md)
+
+
