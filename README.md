@@ -71,6 +71,13 @@ mmtf_file = mmtf.MMTFFile.read(file_path)
 mmtf_file.get("entityList")
 ```
 
+And the types of the "groups" via:
+```python
+mmtf_file.get("groupList")
+```
+
+Proteins are type "L-PEPTIDE LINKING" -- and for now everything else is a ligand. Up to you to figure out how to link these groups back to the atoms in the stack.
+
 MMTF spec is [here](https://github.com/rcsb/mmtf/blob/master/spec.md)
 
 
