@@ -1,4 +1,5 @@
 data/*
+configs/config.yml
 !data/.gitkeep
 temp_data/*
 !temp_data/.gitkeep

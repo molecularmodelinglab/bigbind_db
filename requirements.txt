@@ -2,3 +2,5 @@ rdkit
 sqlite3
 pandas
 biopython
+prefect
+omegaconf
