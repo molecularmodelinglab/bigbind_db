@@ -1,7 +1,9 @@
 data/*
+configs/config.yml
 !data/.gitkeep
 temp_data/*
 !temp_data/.gitkeep
+notebooks
 __pycache__/
 *.pyc
 .DS_Store
