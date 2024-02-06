@@ -3,4 +3,5 @@ temp_data_dir: temp_data
 
 max_table_len: 100
 
-probis_pdb_files: 
+probis_pdb_files: '/proj/kpoplab/ProbisDock/receptor*.pdb'
+probis_cen_files: 
