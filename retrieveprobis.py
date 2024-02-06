@@ -15,9 +15,9 @@ warnings.simplefilter('ignore', PDBConstructionWarning)
 full_list = []
 
 #sort pdb, cen files
-pdb_files = glob('/Users/akshome/Downloads/receptor*.pdb')
+pdb_files = glob('/proj/kpoplab/ProbisDock/receptor*.pdb')
 pdb_files.sort()
-cen_files = glob('/Users/akshome/Downloads/probisdock*.cen')
+cen_files = glob('/proj/kpoplab/ProbisDock/probisdock*.cen')
 cen_files.sort()
 
 
