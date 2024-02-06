@@ -8,6 +8,7 @@ import Bio
 from Bio.PDB import *
 from Bio.PDB.PDBExceptions import PDBConstructionWarning
 from glob import glob
+from bigbind.config import CONFIG
 parser = PDBParser(PERMISSIVE=True)
 warnings.simplefilter('ignore', PDBConstructionWarning)
 
@@ -15,9 +16,9 @@ warnings.simplefilter('ignore', PDBConstructionWarning)
 full_list = []
 
 #sort pdb, cen files
-pdb_files = glob('/proj/kpoplab/ProbisDock/receptor*.pdb')
+pdb_files = glob(CONFIG.probis_pdb_files)
 pdb_files.sort()
-cen_files = glob('/proj/kpoplab/ProbisDock/probisdock*.cen')
+cen_files = glob(CONFIG.probis_cen_files)
 cen_files.sort()
 
 
