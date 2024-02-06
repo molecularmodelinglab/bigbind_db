@@ -58,8 +58,8 @@ for i,j in zip(pdb_files, cen_files):
      res_list = sorted(set(res_list))
      dflist = [pdb_code, chain_id, res_list, seq_list]
      full_list.append(dflist)
-     print(f"1: {pdb_code}  2: {chain_id}  3: {res_list} 4: {seq_list}")
-     print('End of file')
+     #print(f"1: {pdb_code}  2: {chain_id}  3: {res_list} 4: {seq_list}")
+     #print('End of file')
 probisdf = pd.DataFrame(
      [i[0], i[1], i[3]] for i in full_list
 )
