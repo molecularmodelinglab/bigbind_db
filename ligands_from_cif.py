@@ -17,12 +17,16 @@ def add_formal_charges(m):
     for at in m.GetAtoms():
         if at.GetAtomicNum() == 7 and at.GetExplicitValence()==4 and at.GetFormalCharge()==0:
             at.SetFormalCharge(1)
-        if at.GetAtomicNum() == 8 and at.GetExplicitValence()==3 and at.GetFormalCharge()==0:
+        if at.GetAtomicNum() == 8 and at.GetExplicitValence()==3:
             at.SetFormalCharge(1)
         if at.GetAtomicNum() == 8 and at.GetExplicitValence()==1 and at.GetFormalCharge()==0:
             at.SetFormalCharge(-1)
         if at.GetAtomicNum() == 5 and at.GetExplicitValence()==4 and at.GetFormalCharge()==0:
             at.SetFormalCharge(-1)
+        if at.GetAtomicNum() == 8 and at.GetExplicitValence()==2 and at.GetFormalCharge()!=0:
+            at.SetFormalCharge(0)
+        #if at.GetAtomicNum() == 8 and at.GetExplicitValence()==3:
+            #print(at.GetFormalCharge(), at.GetExplicitValence(), at.GetAtomicNum())
 
 
 # takes stack and makes rdkit mol object
