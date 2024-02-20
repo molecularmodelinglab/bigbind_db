@@ -13,6 +13,7 @@ import os
 import tqdm as tqdm
 
 def add_formal_charges(m):
+    # fix this shit please --> there has to be a better way
     m.UpdatePropertyCache(strict=False)
     for at in m.GetAtoms():
         if at.GetAtomicNum() == 7 and at.GetExplicitValence()==4 and at.GetFormalCharge()==0:
@@ -25,8 +26,6 @@ def add_formal_charges(m):
             at.SetFormalCharge(-1)
         if at.GetAtomicNum() == 8 and at.GetExplicitValence()==2 and at.GetFormalCharge()!=0:
             at.SetFormalCharge(0)
-        #if at.GetAtomicNum() == 8 and at.GetExplicitValence()==3:
-            #print(at.GetFormalCharge(), at.GetExplicitValence(), at.GetAtomicNum())
 
 
 # takes stack and makes rdkit mol object
@@ -121,5 +120,5 @@ if __name__ == '__main__':
             for m in singlelig:
                 mols.append(m)
             
-    df = pd.DataFrame(mols, columns = ['File', 'Res', 'Chain','Res_ID', 'smiles'])
+    df = pd.DataFrame(mols, columns = ['Entry', 'Res', 'Chain','Res_ID', 'smiles'])
     print(df)
