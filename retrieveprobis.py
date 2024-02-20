@@ -9,10 +9,15 @@ from Bio.PDB import *
 from Bio.PDB.PDBExceptions import PDBConstructionWarning
 from glob import glob
 from bigbind.config import CONFIG
+from bigbind.examples import add_example_table, add_data_to_example
 parser = PDBParser(PERMISSIVE=True)
 warnings.simplefilter('ignore', PDBConstructionWarning)
 
 #probisdf = pd.DataFrame(columns=['PDB ID', 'Chain ID', 'Binding site residues'])
+#code for sql table creation
+probis_tbl = add_example_table()
+#end
+
 full_list = []
 
 #sort pdb, cen files
