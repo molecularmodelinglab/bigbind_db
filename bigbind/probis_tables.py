@@ -21,37 +21,37 @@ def add_example_table(con):
     # be deleted
     cur = con.cursor()
     cur.execute("DROP TABLE IF EXISTS example")
-    cur.execute("CREATE TABLE example (id INTEGER PRIMARY KEY, name TEXT, age INTEGER, CONSTRAINT unique_name UNIQUE (name))")
+    cur.execute("CREATE TABLE example (id INTEGER PRIMARY KEY, PDB ID TEXT, Chain ID TEXT, Residues TEXT)")
     con.commit()
 
     # Create a DataFrame
-    df = pd.DataFrame({
-        'name': ['Alice', 'Bob', 'Charlie', 'David'],
-        'age': [25, 26, 27, 28]
-    })
+    df = pd.DataFrame(columns=['PDB ID', 'Chain ID', 'Residues'])
 
     # Write the data to a sqlite table
     df.to_sql('example', con, if_exists='append', index=False)
 
-def add_data_to_example(con):
+def add_data_to_example(con, df, row):
     """ Adds some more data to the example table, but only adds rows
     for names that are not already in the table.
+    df: the existing probis data (since we don't want to create a new table everytime we add data)
+    row: the row we want to add. The row should be a list
     """
 
     # Create a DataFrame
-    df = pd.DataFrame({
-        'name': ['Alice', 'Bob', 'Eve', 'Frank'],
-        'age': [25, 26, 27, 28]
-    })
+    #probisdf = df
 
+    #Add row by item
+    df2 = pd.DataFrame([row], columns=['PDB ID', 'Chain ID', 'Residues'])
+    df = pd.concat([df, df2]).reset_index(drop=True)
+    
     # first find all the names that are already in the table
-    names = df['name'].tolist()
+    #names = df['name'].tolist()
     # turn them into a string we can use in the query
-    names_str = str(tuple(names))
-    existing_names = pd.read_sql_query(f"SELECT name FROM example WHERE NAME in {names_str}", con)
+   # names_str = str(tuple(names))
+    #existing_names = pd.read_sql_query(f"SELECT name FROM example WHERE NAME in {names_str}", con)
 
     # remove the names that are already in the table
-    df = df[~df['name'].isin(existing_names['name'])]
+    #df = df[~df['name'].isin(existing_names['name'])]
 
     df.to_sql("example", con, if_exists='append', index=False)
 
