@@ -281,6 +281,9 @@ def create_activites(chembl_df):
 #     activites.to_sql(con=con, name='TBL_NAME', schema='SCHEMA', index=False, if_exists='append')
 #     print("done")
 
+
+
+
 @flow
 def main(): 
     print("hello world")
@@ -298,6 +301,11 @@ def main():
     print("start activities")
     activites = create_activites(df)
     activites.to_csv("activites.csv", index=False)
+    
+    con = create_connection()
+    molecules.to_sql(con=con, name='molecules', schema='SCHEMA', index=False, if_exists='append')
+    proteins.to_sql(con=con, name='proteins', schema='SCHEMA', index=False, if_exists='append')
+    activites.to_sql(con=con, name='activites', schema='SCHEMA', index=False, if_exists='append')
     
     print("done")
     
