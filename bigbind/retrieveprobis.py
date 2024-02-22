@@ -10,11 +10,13 @@ from Bio.PDB.PDBExceptions import PDBConstructionWarning
 from glob import glob
 from bigbind.config import CONFIG
 from bigbind.probis_tables import add_example_table, add_data_to_example
+from bigbind.db import create_connection
 parser = PDBParser(PERMISSIVE=True)
 warnings.simplefilter('ignore', PDBConstructionWarning)
 
 #probisdf = pd.DataFrame(columns=['PDB ID', 'Chain ID', 'Binding site residues'])
 #code for sql table creation
+con = create_connection()
 probis_tbl = add_example_table(con)
 #end
 
