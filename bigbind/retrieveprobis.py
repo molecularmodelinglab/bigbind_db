@@ -15,7 +15,7 @@ warnings.simplefilter('ignore', PDBConstructionWarning)
 
 #probisdf = pd.DataFrame(columns=['PDB ID', 'Chain ID', 'Binding site residues'])
 #code for sql table creation
-probis_tbl = add_example_table()
+probis_tbl = add_example_table(con)
 #end
 
 full_list = []
@@ -63,7 +63,7 @@ for i,j in zip(pdb_files, cen_files):
      seq_list = str(sorted(set(seq_list)))
      #res_list = sorted(set(res_list))
      dflist = [pdb_code, chain_id, seq_list]
-     probis_tbl = add_data_to_example(probisdf, dflist)
+     probis_tbl = add_data_to_example(con, probisdf, dflist)
      #full_list.append(dflist)
      #print(f"1: {pdb_code}  2: {chain_id}  3: {res_list} 4: {seq_list}")
      #print('End of file')
