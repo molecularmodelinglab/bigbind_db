@@ -1,0 +1,12 @@
+compound_chembl_id,canonical_smiles,molecular_weight,zinc_elements,has_conformer
+CHEMBL157101,CC(=O)N1CCN(c2ccc(OCC3COC(Cn4ccnc4)(c4ccc(Cl)cc4Cl)O3)cc2)CC1,530.148760736,True,True
+CHEMBL328863,CC(=O)N1CCN(c2ccc(OC[C@@H]3CO[C@](Cn4ccnc4)(c4ccc(Cl)cc4Cl)O3)cc2)CC1,530.148760736,True,True
+CHEMBL319160,CC(=O)N1CCN(c2ccc(OC[C@H]3CO[C@@](Cn4ccnc4)(c4ccc(Cl)cc4Cl)O3)cc2)CC1,530.148760736,True,True
+CHEMBL157101,CC(=O)N1CCN(c2ccc(OCC3COC(Cn4ccnc4)(c4ccc(Cl)cc4Cl)O3)cc2)CC1,530.148760736,True,True
+CHEMBL313630,CCCC(=O)Oc1ccc(C[C@@H](C)[C@@H](C)Cc2ccc(OC(=O)CCC)c(OC(=O)CCC)c2)cc1OC(=O)CCC,582.3192684319998,True,True
+CHEMBL315582,CC(C)CC(=O)Oc1ccc(C[C@@H](C)[C@@H](C)Cc2ccc(OC(=O)CC(C)C)c(OC(=O)CC(C)C)c2)cc1OC(=O)CC(C)C,638.3818686879999,True,True
+CHEMBL313613,CC(C)C(=O)Oc1ccc(C[C@@H](C)[C@@H](C)Cc2ccc(OC(=O)C(C)C)c(OC(=O)C(C)C)c2)cc1OC(=O)C(C)C,582.3192684319998,True,True
+CHEMBL316389,CCCCCC(=O)Oc1ccc(C[C@@H](C)[C@@H](C)Cc2ccc(OC(=O)CCCCC)c(OC(=O)CCCCC)c2)cc1OC(=O)CCCCC,694.444468944,True,True
+CHEMBL329336,CCC(=O)Oc1ccc(C[C@@H](C)[C@@H](C)Cc2ccc(OC(=O)CC)c(OC(=O)CC)c2)cc1OC(=O)CC,526.2566681759998,True,True
+CHEMBL17815,CCCc1cc(Cl)c2oc(Cc3ccc(OC)cc3)c(C)c2c1O,344.117922212,True,True
+CHEMBL92212,CCc1cc(O)c(O)cc1C[C@@H](C)[C@@H](C)Cc1cc(O)c(O)cc1CC,358.21440943999994,True,True

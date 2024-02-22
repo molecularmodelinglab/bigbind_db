@@ -16,6 +16,9 @@ from rdkit.Chem import rdDistGeom
 import rdkit
 from rdkit.Chem import AllChem
 from pathlib import Path
+from prefect import flow, task, get_run_logger
+from bigbind.db import create_connection
+from rdkit.Chem import Descriptors
 
 
 def untar_chembl(out_path, chembl_filename):
@@ -106,7 +109,6 @@ def load_chembl(desired_db_path, desired_csv_path):
 
 # takes in chembl dataframe and outputs molecules
 
-
 def gotzinc(molecule):
     yayatoms = ["H", "C", "N", "O", "F", "S", "P", "Cl", "Br", "I"]
     atoms = molecule.GetAtoms()
@@ -121,7 +123,7 @@ def get_conformer(mol, chemblid):
         mol = Chem.AddHs(mol)
         conformers = AllChem.EmbedMultipleConfs(mol, numConfs=1)
 
-        p = Path(f"data/conformers/{chemblid}.sdf")
+        p = Path(f"data/molecules/conformers/{chemblid}.sdf")
         writer = Chem.SDWriter(str(p.resolve()))
         for cid in range(mol.GetNumConformers()):
             writer.write(mol, confId=cid)
@@ -129,7 +131,7 @@ def get_conformer(mol, chemblid):
     except:
         return False
 
-
+@task
 def create_molecules(chembl_df):
     molecules = pd.DataFrame()
     molecules = molecules.assign(compound_chembl_id=chembl_df["compound_chembl_id"])
@@ -143,27 +145,27 @@ def create_molecules(chembl_df):
     # for debugging
     shape = chembl_df.shape[0]
 
-    if not os.path.exists(os.path.dirname("data/confomers")):
-        os.makedirs(os.path.dirname("data/confomers"))
+    if not os.path.exists(os.path.dirname("data/molecules/confomers")):
+        os.makedirs(os.path.dirname("data/molecules/confomers"))
 
     for index, row in chembl_df.iterrows():
         cur_mol = Chem.MolFromSmiles(row["canonical_smiles"])
 
         # get molecular weight
-        molecules.at[index, "molecular_weight"] = Chem.Descriptors.ExactMolWt(cur_mol)
+        molecules.at[index, "molecular_weight"] = Descriptors.ExactMolWt(cur_mol)
         # does it ONLY have elements in the list yayatoms
         molecules.at[index, "zinc_elements"] = gotzinc(cur_mol)
 
         # create conformer
-        if not os.path.exists("data/conformers"):
-            os.makedirs("data/conformers")
+        if not os.path.exists("data/molecules/conformers"):
+            os.makedirs("data/molecules/conformers")
 
         molecules.at[index, "has_conformer"] = get_conformer(
             cur_mol, row["compound_chembl_id"]
         )
 
-        if index == chembl_df.shape[0]:
-            break
+        # if index ==10:
+        #     break
 
     return molecules
 
@@ -183,7 +185,7 @@ def download_uniprot_fasta(out_path, downloadurl):
 def extract_id(header):
     return header.split("|")[1]
 
-
+@task
 def create_proteins(chembl_df):
     # download uniprot sequences
     download_uniprot_fasta(
@@ -212,21 +214,31 @@ def create_proteins(chembl_df):
     sequences_uncomplete = Fasta(
         "data/uniprot/uniprot_trembl.fasta", key_function=extract_id
     )
+    for index, row in chembl_df.iterrows():
 
-    # add new column
-    print("populating proteins")
-    proteins["protein_sequence"] = proteins.apply(
-        lambda x: sequences_complete[x["uniprotID"]]
-        if x["uniprotID"] in sequences_complete
-        else sequences_uncomplete[x["uniprotID"]]
-        if x["uniprotID"] in sequences_uncomplete
-        else "none",
-        axis=1,
-    )
+        if row["uniprotID"] in sequences_complete:
+            proteins.at[index, "protein_sequence"] = sequences_complete[row["uniprotID"]]
+            
+        else:
+            proteins.at[index, "molecular_weight"] = sequences_uncomplete[row["uniprotID"]]
+
+        # if index >= 10:
+        #     break
+    # # add new column
+    # print("populating proteins")
+    # proteins["protein_sequence"] = proteins.apply(
+    #     lambda x: sequences_complete[x["uniprotID"]]
+    #     if x["uniprotID"] in sequences_complete
+    #     else sequences_uncomplete[x["uniprotID"]]
+    #     if x["uniprotID"] in sequences_uncomplete
+    #     else "none",
+    #     axis=1,
+    # )
 
     return proteins
 
 
+@task
 def create_activites(chembl_df):
     activities = pd.DataFrame()
     activities = activities.assign(
@@ -246,16 +258,48 @@ def create_activites(chembl_df):
     return activities
 
 
-if __name__ == "__main__":
+
+
+# @flow
+# def main_flow():
+#     df = load_chembl("data/chembl/chembl.db", "data/chembl/chembl.csv")
+#     con = create_connection()
+    
+
+#     molecules = create_molecules(df)
+#     molecules.to_csv("molecules.csv", index=False)
+    
+#     proteins = create_proteins(df)
+#     proteins.to_csv("proteins.csv", index=False)
+    
+#     activites = create_activites(df)
+#     activites.to_csv("activites.csv", index=False)
+    
+    
+#     molecules.to_sql(con=con, name='TBL_NAME', schema='SCHEMA', index=False, if_exists='append')
+#     proteins.to_sql(con=con, name='TBL_NAME', schema='SCHEMA', index=False, if_exists='append')
+#     activites.to_sql(con=con, name='TBL_NAME', schema='SCHEMA', index=False, if_exists='append')
+#     print("done")
+
+@flow
+def main(): 
     print("hello world")
     print("hi")
+    
     df = load_chembl("data/chembl/chembl.db", "data/chembl/chembl.csv")
     print("start molecules")
     molecules = create_molecules(df)
     molecules.to_csv("molecules.csv", index=False)
+    
+    print("start proteins")
     proteins = create_proteins(df)
     proteins.to_csv("proteins.csv", index=False)
+    
+    print("start activities")
     activites = create_activites(df)
     activites.to_csv("activites.csv", index=False)
-    print(df.shape)
+    
     print("done")
+    
+if __name__ == "__main__":
+    main()
