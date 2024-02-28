@@ -11,14 +11,20 @@ def proteins_from_cif(file_path):
 
     if type(poly['type']) == str:
         if poly['type'] != 'polydeoxyribonucleotide':
-            for i in poly['pdbx_strand_id']:
+            for i in poly['pdbx_strand_id'].split(','):
+                if 'X' in poly['pdbx_seq_one_letter_code_can']:
                     prot_comps.append([list(pdbx_file.keys())[0][0], poly['pdbx_seq_one_letter_code'], i])
+                else:
+                    prot_comps.append([list(pdbx_file.keys())[0][0], poly['pdbx_seq_one_letter_code_can'], i])
     else:
         for p in enumerate(poly['type']):
             if p[1] != 'polydeoxyribonucleotide':
                 new_chains = poly['pdbx_strand_id'][p[0]].split(",")
                 for n in new_chains:
-                    prot_comps.append([list(pdbx_file.keys())[0][0], poly['pdbx_seq_one_letter_code'][p[0]], n])
+                    if 'X' in poly['pdbx_seq_one_letter_code_can'][p[0]]:
+                        prot_comps.append([list(pdbx_file.keys())[0][0], poly['pdbx_seq_one_letter_code'][p[0]], n])
+                    else:
+                        prot_comps.append([list(pdbx_file.keys())[0][0], poly['pdbx_seq_one_letter_code_can'][p[0]], n])
 
     return prot_comps
 
@@ -34,4 +40,5 @@ if __name__ == '__main__':
                 prots.append(m)
             
     df = pd.DataFrame(prots, columns = ['Entry', 'Sequence', 'Chain'])
+    df.to_csv('protein_comp.csv')
     print(df)
