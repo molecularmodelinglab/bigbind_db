@@ -73,7 +73,11 @@ for i,j in zip(pdb_files, cen_files):
      #[i[0], i[1], i[3]] for i in full_list
 #)
 #probisdf = probisdf.rename({0: 'PDB ID', 1: 'Chain ID', 2: 'Sequence ID\'s of binding site residues'}, axis='columns')
-print(probisdf)
+def get_posts():
+    with con:
+        cur.execute("SELECT * FROM example")
+        print(cur.fetchall()
+get_posts()
      #print(type(pdb_code), type(chain.id), type(res_list))
 
 
