@@ -19,6 +19,9 @@ from pathlib import Path
 from prefect import flow, task, get_run_logger
 from bigbind.db import create_connection
 from rdkit.Chem import Descriptors
+import yaml
+import multiprocessing as mp
+from functools import partial
 
 
 def untar_chembl(out_path, chembl_filename):
@@ -130,25 +133,10 @@ def get_conformer(mol, chemblid):
         return True
     except:
         return False
-
-@task
-def create_molecules(chembl_df):
-    molecules = pd.DataFrame()
-    molecules = molecules.assign(compound_chembl_id=chembl_df["compound_chembl_id"])
-    molecules = molecules.assign(canonical_smiles=chembl_df["canonical_smiles"])
-
-    # make empty columns
-    molecules["molecular_weight"] = -1.0
-    molecules["zinc_elements"] = False
-    molecules["has_conformer"] = False
-
-    # for debugging
-    shape = chembl_df.shape[0]
-
-    if not os.path.exists(os.path.dirname("data/molecules/confomers")):
-        os.makedirs(os.path.dirname("data/molecules/confomers"))
-
-    for index, row in chembl_df.iterrows():
+    
+    
+def molecules_sequence_chunk(molecules):
+    for index, row in molecules.iterrows():
         cur_mol = Chem.MolFromSmiles(row["canonical_smiles"])
 
         # get molecular weight
@@ -163,9 +151,57 @@ def create_molecules(chembl_df):
         molecules.at[index, "has_conformer"] = get_conformer(
             cur_mol, row["compound_chembl_id"]
         )
+    return molecules
 
-        # if index ==10:
-        #     break
+@task
+def create_molecules(chembl_df, break_num):
+    molecules = pd.DataFrame()
+    molecules = molecules.assign(compound_chembl_id=chembl_df["compound_chembl_id"])
+    molecules = molecules.assign(canonical_smiles=chembl_df["canonical_smiles"])
+
+    # make empty columns
+    molecules["molecular_weight"] = -1.0
+    molecules["zinc_elements"] = False
+    molecules["has_conformer"] = False
+    
+    #making it the size of break num
+    molecules = molecules[:break_num]
+
+    # for debugging
+    shape = chembl_df.shape[0]
+
+    if not os.path.exists(os.path.dirname("data/molecules/confomers")):
+        os.makedirs(os.path.dirname("data/molecules/confomers"))
+
+    n_jobs = mp.cpu_count()  # Poolsize
+    pool = mp.Pool(n_jobs)
+    print('Starting MP')
+    chunksize = len(molecules)//n_jobs
+    chunks = [molecules[i:i+chunksize] for i in range(0,len(molecules),chunksize)]
+    
+    result = pool.map(molecules_sequence_chunk, chunks)
+    molecules = pd.concat(result)
+    
+    pool.close()
+    pool.join()
+    
+    
+    
+    # for index, row in molecules.iterrows():
+    #     cur_mol = Chem.MolFromSmiles(row["canonical_smiles"])
+
+    #     # get molecular weight
+    #     molecules.at[index, "molecular_weight"] = Descriptors.ExactMolWt(cur_mol)
+    #     # does it ONLY have elements in the list yayatoms
+    #     molecules.at[index, "zinc_elements"] = gotzinc(cur_mol)
+
+    #     # create conformer
+    #     if not os.path.exists("data/molecules/conformers"):
+    #         os.makedirs("data/molecules/conformers")
+
+    #     molecules.at[index, "has_conformer"] = get_conformer(
+    #         cur_mol, row["compound_chembl_id"]
+    #     )
 
     return molecules
 
@@ -185,8 +221,19 @@ def download_uniprot_fasta(out_path, downloadurl):
 def extract_id(header):
     return header.split("|")[1]
 
+def proteins_sequence_chunk(proteins, sequences_complete, sequences_uncomplete):
+    for index, row in proteins.iterrows():
+
+        if row["uniprotID"] in sequences_complete:
+            proteins.at[index, "protein_sequence"] = sequences_complete[row["uniprotID"]]
+            
+        else:
+            proteins.at[index, "protein_sequence"] = sequences_uncomplete[row["uniprotID"]]
+    
+    return proteins
+
 @task
-def create_proteins(chembl_df):
+def create_proteins(chembl_df, break_num):
     # download uniprot sequences
     download_uniprot_fasta(
         "data/uniprot/uniprot_sprot.fasta.gz",
@@ -204,6 +251,8 @@ def create_proteins(chembl_df):
     proteins = proteins.assign(uniprotID=chembl_df["protein_accession"])
     # remove duplicates
     proteins = proteins.drop_duplicates()
+    #make it as big as our break_num
+    proteins = proteins[:break_num]
 
     # add new column
     proteins["protein_sequence"] = ""
@@ -214,32 +263,37 @@ def create_proteins(chembl_df):
     sequences_uncomplete = Fasta(
         "data/uniprot/uniprot_trembl.fasta", key_function=extract_id
     )
-    for index, row in chembl_df.iterrows():
+    
+    # Job parameters
+    n_jobs = mp.cpu_count()  # Poolsize
+    pool = mp.Pool(n_jobs)
+    print('Starting MP')
+    chunksize = len(proteins)//n_jobs
+    
+    chunks = [proteins[i:i+chunksize] for i in range(0,len(proteins),chunksize)]
+    
+    process_partial = partial(proteins_sequence_chunk, proteins=proteins, sequences_complete=sequences_complete, sequences_uncomplete=sequences_uncomplete)
+    result = pool.map(process_partial, chunks)
+    proteins = pd.concat(result)
+    
+    pool.close()
+    pool.join()
+    
+    # for index, row in proteins.iterrows():
 
-        if row["uniprotID"] in sequences_complete:
-            proteins.at[index, "protein_sequence"] = sequences_complete[row["uniprotID"]]
+    #     if row["uniprotID"] in sequences_complete:
+    #         proteins.at[index, "protein_sequence"] = sequences_complete[row["uniprotID"]]
             
-        else:
-            proteins.at[index, "molecular_weight"] = sequences_uncomplete[row["uniprotID"]]
+    #     else:
+    #         proteins.at[index, "protein_sequence"] = sequences_uncomplete[row["uniprotID"]]
 
-        # if index >= 10:
-        #     break
-    # # add new column
-    # print("populating proteins")
-    # proteins["protein_sequence"] = proteins.apply(
-    #     lambda x: sequences_complete[x["uniprotID"]]
-    #     if x["uniprotID"] in sequences_complete
-    #     else sequences_uncomplete[x["uniprotID"]]
-    #     if x["uniprotID"] in sequences_uncomplete
-    #     else "none",
-    #     axis=1,
-    # )
+   
 
     return proteins
 
 
 @task
-def create_activites(chembl_df):
+def create_activites(chembl_df, break_num):
     activities = pd.DataFrame()
     activities = activities.assign(
         # molecules for referance
@@ -255,31 +309,12 @@ def create_activites(chembl_df):
         pchembl_value=chembl_df["pchembl_value"],
     )
 
+    activities = activities[:break_num]
     return activities
 
 
 
 
-# @flow
-# def main_flow():
-#     df = load_chembl("data/chembl/chembl.db", "data/chembl/chembl.csv")
-#     con = create_connection()
-    
-
-#     molecules = create_molecules(df)
-#     molecules.to_csv("molecules.csv", index=False)
-    
-#     proteins = create_proteins(df)
-#     proteins.to_csv("proteins.csv", index=False)
-    
-#     activites = create_activites(df)
-#     activites.to_csv("activites.csv", index=False)
-    
-    
-#     molecules.to_sql(con=con, name='TBL_NAME', schema='SCHEMA', index=False, if_exists='append')
-#     proteins.to_sql(con=con, name='TBL_NAME', schema='SCHEMA', index=False, if_exists='append')
-#     activites.to_sql(con=con, name='TBL_NAME', schema='SCHEMA', index=False, if_exists='append')
-#     print("done")
 
 
 
@@ -289,17 +324,23 @@ def main():
     print("hello world")
     print("hi")
     
+    configs = {}
+    with open('configs\\default.yml') as info:
+        configs = yaml.safe_load(info)
+    
+    max_table_len = configs["max_table_len"]
+    
     df = load_chembl("data/chembl/chembl.db", "data/chembl/chembl.csv")
     print("start molecules")
-    molecules = create_molecules(df)
+    molecules = create_molecules(df, max_table_len)
     molecules.to_csv("molecules.csv", index=False)
     
     print("start proteins")
-    proteins = create_proteins(df)
+    proteins = create_proteins(df, max_table_len)
     proteins.to_csv("proteins.csv", index=False)
     
     print("start activities")
-    activites = create_activites(df)
+    activites = create_activites(df, max_table_len)
     activites.to_csv("activites.csv", index=False)
     
     con = create_connection()
