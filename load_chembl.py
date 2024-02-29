@@ -1,5 +1,7 @@
 # imports :)
 import subprocess
+import time
+import sys
 import os
 from glob import glob
 import sqlite3
@@ -22,9 +24,32 @@ from rdkit.Chem import Descriptors
 import yaml
 import multiprocessing as mp
 from functools import partial
+import logging
+import signal 
+
+log = logging.getLogger(__name__)
+
+#classes-------------------
+
+
+class timeout:
+    def __init__(self, seconds, error_message="Timeout"):
+        self.seconds = seconds
+        self.error_message = error_message
+
+    def handle_timeout(self, signum, frame):
+        raise TimeoutError(self.error_message)
+
+    def __enter__(self):
+        signal.signal(signal.SIGALRM, self.handle_timeout)
+        signal.alarm(self.seconds)
+
+    def __exit__(self, type, value, traceback):
+        signal.alarm(0)
 
 
 def untar_chembl(out_path, chembl_filename):
+    print(f"Untarring {chembl_filename}")
     out_dir = os.path.dirname(out_path)
     cmd = f"tar -xf {chembl_filename} --one-top-level={out_dir}"
     print(f"Running {cmd}")
@@ -91,13 +116,29 @@ def get_crossdocked_chembl_activities(csv_path, con, prev_output=None):
     return csv_path
 
 
+def reporthook(count, block_size, total_size):
+    global start_time
+    if count == 0:
+        start_time = time.time()
+        return
+    duration = time.time() - start_time
+    progress_size = int(count * block_size)
+    speed = int(progress_size / (1024 * duration))
+    percent = int(count * block_size * 100 / total_size)
+    sys.stdout.write("\r...%d%%, %d MB, %d KB/s, %d seconds passed" %
+                    (percent, progress_size / (1024 * 1024), speed, duration))
+    sys.stdout.flush()
+
 def load_chembl(desired_db_path, desired_csv_path):
     # Check if the CSV file exists
     if not os.path.isfile(desired_csv_path):
+        print(f'{desired_csv_path} does not exist, downloading.')
         chembl_tarred = urllib.request.urlretrieve(
-            "https://ftp.ebi.ac.uk/pub/databases/chembl/ChEMBLdb/latest/chembl_33_sqlite.tar.gz"
+            "https://ftp.ebi.ac.uk/pub/databases/chembl/ChEMBLdb/latest/chembl_33_sqlite.tar.gz",
+            "./download/chembl_33_sqlite.tar.gz",
+            reporthook
         )[0]
-
+        print(f'{desired_csv_path} downloaded')
         chembl_db_file = untar_chembl(desired_db_path, chembl_tarred)
 
         con = get_chembl_con(chembl_db_file)
@@ -123,18 +164,25 @@ def gotzinc(molecule):
 
 def get_conformer(mol, chemblid):
     try:
-        mol = Chem.AddHs(mol)
-        conformers = AllChem.EmbedMultipleConfs(mol, numConfs=1)
+        #times out after 20 seconds when creating conformers
+        with timeout(20):
+            try:
+                mol = Chem.AddHs(mol)
+                conformers = AllChem.EmbedMultipleConfs(mol, numConfs=1)
 
-        p = Path(f"data/molecules/conformers/{chemblid}.sdf")
-        writer = Chem.SDWriter(str(p.resolve()))
-        for cid in range(mol.GetNumConformers()):
-            writer.write(mol, confId=cid)
-        return True
-    except:
+                p = Path(f"data/molecules/conformers/{chemblid}.sdf")
+                writer = Chem.SDWriter(str(p.resolve()))
+                for cid in range(mol.GetNumConformers()):
+                    writer.write(mol, confId=cid)
+                return True
+            except RuntimeError:
+                print("unable to work")
+                return False
+    except TimeoutError:
+        print("timedout")
         return False
-    
-    
+
+
 def molecules_sequence_chunk(molecules):
     for index, row in molecules.iterrows():
         cur_mol = Chem.MolFromSmiles(row["canonical_smiles"])
@@ -145,8 +193,9 @@ def molecules_sequence_chunk(molecules):
         molecules.at[index, "zinc_elements"] = gotzinc(cur_mol)
 
         # create conformer
-        if not os.path.exists("data/molecules/conformers"):
-            os.makedirs("data/molecules/conformers")
+        #if not os.path.exists("data/molecules/conformers"):
+        #    os.makedirs("data/molecules/conformers")
+        Path("data/molecules/conformers").mkdir(parents=True, exist_ok=True)
 
         molecules.at[index, "has_conformer"] = get_conformer(
             cur_mol, row["compound_chembl_id"]
@@ -163,7 +212,7 @@ def create_molecules(chembl_df, break_num):
     molecules["molecular_weight"] = -1.0
     molecules["zinc_elements"] = False
     molecules["has_conformer"] = False
-    
+
     #making it the size of break num
     molecules = molecules[:break_num]
 
@@ -173,20 +222,18 @@ def create_molecules(chembl_df, break_num):
     if not os.path.exists(os.path.dirname("data/molecules/confomers")):
         os.makedirs(os.path.dirname("data/molecules/confomers"))
 
-    n_jobs = mp.cpu_count()  # Poolsize
+    n_jobs = mp.cpu_count() // 2  # Poolsize
     pool = mp.Pool(n_jobs)
-    print('Starting MP')
+    print('Starting Molecule MP')
     chunksize = len(molecules)//n_jobs
     chunks = [molecules[i:i+chunksize] for i in range(0,len(molecules),chunksize)]
-    
+
     result = pool.map(molecules_sequence_chunk, chunks)
     molecules = pd.concat(result)
-    
+
     pool.close()
     pool.join()
-    
-    
-    
+
     # for index, row in molecules.iterrows():
     #     cur_mol = Chem.MolFromSmiles(row["canonical_smiles"])
 
@@ -211,7 +258,7 @@ def download_uniprot_fasta(out_path, downloadurl):
         return out_path
     if not os.path.exists(os.path.dirname(out_path)):
         os.makedirs(os.path.dirname(out_path))
-    urllib.request.urlretrieve(downloadurl, out_path)
+    urllib.request.urlretrieve(downloadurl, out_path, reporthook)
     cmd = f"gzip -d {out_path}"
     print(f"Running {cmd}")
     subprocess.run(cmd, shell=True, check=True)
@@ -226,15 +273,16 @@ def proteins_sequence_chunk(proteins, sequences_complete, sequences_uncomplete):
 
         if row["uniprotID"] in sequences_complete:
             proteins.at[index, "protein_sequence"] = sequences_complete[row["uniprotID"]]
-            
+
         else:
             proteins.at[index, "protein_sequence"] = sequences_uncomplete[row["uniprotID"]]
-    
+
     return proteins
 
 @task
 def create_proteins(chembl_df, break_num):
     # download uniprot sequences
+    print("Creating proteins...")
     download_uniprot_fasta(
         "data/uniprot/uniprot_sprot.fasta.gz",
         "https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/complete/uniprot_sprot.fasta.gz",
@@ -256,38 +304,38 @@ def create_proteins(chembl_df, break_num):
 
     # add new column
     proteins["protein_sequence"] = ""
-
+    print("loading fasta...")
     sequences_complete = Fasta(
         "data/uniprot/uniprot_sprot.fasta", key_function=extract_id
     )
     sequences_uncomplete = Fasta(
         "data/uniprot/uniprot_trembl.fasta", key_function=extract_id
     )
-    
+
     # Job parameters
-    n_jobs = mp.cpu_count()  # Poolsize
+    n_jobs = mp.cpu_count() // 2  # Poolsize
     pool = mp.Pool(n_jobs)
-    print('Starting MP')
+    print('Starting Protein MP')
     chunksize = len(proteins)//n_jobs
-    
+
     chunks = [proteins[i:i+chunksize] for i in range(0,len(proteins),chunksize)]
-    
+
     process_partial = partial(proteins_sequence_chunk, proteins=proteins, sequences_complete=sequences_complete, sequences_uncomplete=sequences_uncomplete)
     result = pool.map(process_partial, chunks)
     proteins = pd.concat(result)
-    
+
     pool.close()
     pool.join()
-    
+
     # for index, row in proteins.iterrows():
 
     #     if row["uniprotID"] in sequences_complete:
     #         proteins.at[index, "protein_sequence"] = sequences_complete[row["uniprotID"]]
-            
+
     #     else:
     #         proteins.at[index, "protein_sequence"] = sequences_uncomplete[row["uniprotID"]]
 
-   
+
 
     return proteins
 
@@ -313,42 +361,34 @@ def create_activites(chembl_df, break_num):
     return activities
 
 
-
-
-
-
-
-
 @flow
-def main(): 
-    print("hello world")
-    print("hi")
-    
+def main():
+    print("Starting Main")
+
     configs = {}
-    with open('configs\\default.yml') as info:
+    with open('configs/default.yml') as info:
         configs = yaml.safe_load(info)
-    
+
     max_table_len = configs["max_table_len"]
-    
+
     df = load_chembl("data/chembl/chembl.db", "data/chembl/chembl.csv")
-    print("start molecules")
+    print("Loading molecules...")
     molecules = create_molecules(df, max_table_len)
     molecules.to_csv("molecules.csv", index=False)
-    
-    print("start proteins")
+
+    print("Loading proteins...")
     proteins = create_proteins(df, max_table_len)
     proteins.to_csv("proteins.csv", index=False)
-    
-    print("start activities")
+
+    print("Loading activities...")
     activites = create_activites(df, max_table_len)
     activites.to_csv("activites.csv", index=False)
-    
-    con = create_connection()
-    molecules.to_sql(con=con, name='molecules', schema='SCHEMA', index=False, if_exists='append')
-    proteins.to_sql(con=con, name='proteins', schema='SCHEMA', index=False, if_exists='append')
-    activites.to_sql(con=con, name='activites', schema='SCHEMA', index=False, if_exists='append')
-    
+
+    # con = create_connection()
+    # molecules.to_sql(con=con, name='molecules', schema='SCHEMA', index=False, if_exists='append')
+    # proteins.to_sql(con=con, name='proteins', schema='SCHEMA', index=False, if_exists='append')
+    # activites.to_sql(con=con, name='activites', schema='SCHEMA', index=False, if_exists='append')
     print("done")
-    
+
 if __name__ == "__main__":
     main()
