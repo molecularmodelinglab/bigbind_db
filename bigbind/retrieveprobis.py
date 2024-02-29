@@ -76,7 +76,7 @@ for i,j in zip(pdb_files, cen_files):
 def get_posts():
     with con:
         cur.execute("SELECT * FROM example")
-        print(cur.fetchall()
+        print(cur.fetchall())
 get_posts()
      #print(type(pdb_code), type(chain.id), type(res_list))
 
