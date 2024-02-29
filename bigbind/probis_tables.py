@@ -21,11 +21,11 @@ def add_example_table(con):
     # be deleted
     cur = con.cursor()
     cur.execute("DROP TABLE IF EXISTS example")
-    cur.execute("CREATE TABLE example (id INTEGER PRIMARY KEY, pdb id TEXT, chain id TEXT, residues TEXT)")
+    cur.execute("CREATE TABLE example (id INTEGER PRIMARY KEY, pdb TEXT, chain TEXT, residues TEXT)")
     con.commit()
 
     # Create a DataFrame
-    df = pd.DataFrame(columns=['pdb id', 'chain id', 'residues'])
+    df = pd.DataFrame(columns=['pdb', 'chain', 'residues'])
 
     # Write the data to a sqlite table
     df.to_sql('example', con, if_exists='append', index=False)
@@ -41,7 +41,7 @@ def add_data_to_example(con, df, row):
     #probisdf = df
 
     #Add row by item
-    df2 = pd.DataFrame([row], columns=['pdb id', 'chain id', 'residues'])
+    df2 = pd.DataFrame([row], columns=['pdb', 'chain', 'residues'])
     df = pd.concat([df, df2]).reset_index(drop=True)
     
     # first find all the names that are already in the table
