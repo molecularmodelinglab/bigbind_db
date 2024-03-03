@@ -19,13 +19,15 @@ import rdkit
 from rdkit.Chem import AllChem
 from pathlib import Path
 from prefect import flow, task, get_run_logger
-from bigbind.db import create_connection
+from db import create_connection
 from rdkit.Chem import Descriptors
 import yaml
 import multiprocessing as mp
 from functools import partial
 import logging
 import signal 
+from concurrent import futures
+
 
 log = logging.getLogger(__name__)
 
@@ -164,13 +166,16 @@ def gotzinc(molecule):
 
 def get_conformer(mol, chemblid):
     try:
-        #times out after 20 seconds when creating conformers
-        with timeout(20):
+        #times out after 30 seconds when creating conformers
+        with timeout(30):
             try:
+                p = Path(f"data/molecules/conformers/{chemblid}.sdf")
+                if p.is_file():
+                    return True
+
                 mol = Chem.AddHs(mol)
                 conformers = AllChem.EmbedMultipleConfs(mol, numConfs=1)
 
-                p = Path(f"data/molecules/conformers/{chemblid}.sdf")
                 writer = Chem.SDWriter(str(p.resolve()))
                 for cid in range(mol.GetNumConformers()):
                     writer.write(mol, confId=cid)
@@ -202,7 +207,7 @@ def molecules_sequence_chunk(molecules):
         )
     return molecules
 
-@task
+#@task
 def create_molecules(chembl_df, break_num):
     molecules = pd.DataFrame()
     molecules = molecules.assign(compound_chembl_id=chembl_df["compound_chembl_id"])
@@ -227,28 +232,13 @@ def create_molecules(chembl_df, break_num):
     print('Starting Molecule MP')
     chunksize = len(molecules)//n_jobs
     chunks = [molecules[i:i+chunksize] for i in range(0,len(molecules),chunksize)]
-
+    print("loading result")
     result = pool.map(molecules_sequence_chunk, chunks)
     molecules = pd.concat(result)
-
+    print("closing pool")
     pool.close()
+    print("joining pool")
     pool.join()
-
-    # for index, row in molecules.iterrows():
-    #     cur_mol = Chem.MolFromSmiles(row["canonical_smiles"])
-
-    #     # get molecular weight
-    #     molecules.at[index, "molecular_weight"] = Descriptors.ExactMolWt(cur_mol)
-    #     # does it ONLY have elements in the list yayatoms
-    #     molecules.at[index, "zinc_elements"] = gotzinc(cur_mol)
-
-    #     # create conformer
-    #     if not os.path.exists("data/molecules/conformers"):
-    #         os.makedirs("data/molecules/conformers")
-
-    #     molecules.at[index, "has_conformer"] = get_conformer(
-    #         cur_mol, row["compound_chembl_id"]
-    #     )
 
     return molecules
 
@@ -279,7 +269,7 @@ def proteins_sequence_chunk(proteins, sequences_complete, sequences_uncomplete):
 
     return proteins
 
-@task
+#@task
 def create_proteins(chembl_df, break_num):
     # download uniprot sequences
     print("Creating proteins...")
@@ -314,33 +304,24 @@ def create_proteins(chembl_df, break_num):
 
     # Job parameters
     n_jobs = mp.cpu_count() // 2  # Poolsize
-    pool = mp.Pool(n_jobs)
+    #pool = mp.Pool(n_jobs)
     print('Starting Protein MP')
     chunksize = len(proteins)//n_jobs
 
     chunks = [proteins[i:i+chunksize] for i in range(0,len(proteins),chunksize)]
 
-    process_partial = partial(proteins_sequence_chunk, proteins=proteins, sequences_complete=sequences_complete, sequences_uncomplete=sequences_uncomplete)
-    result = pool.map(process_partial, chunks)
+    process_partial = partial(proteins_sequence_chunk, sequences_complete=sequences_complete, sequences_uncomplete=sequences_uncomplete)
+    with futures.ThreadPoolExecutor(n_jobs) as executor:
+        result = executor.map(process_partial, chunks)
+    
+    
     proteins = pd.concat(result)
-
-    pool.close()
-    pool.join()
-
-    # for index, row in proteins.iterrows():
-
-    #     if row["uniprotID"] in sequences_complete:
-    #         proteins.at[index, "protein_sequence"] = sequences_complete[row["uniprotID"]]
-
-    #     else:
-    #         proteins.at[index, "protein_sequence"] = sequences_uncomplete[row["uniprotID"]]
-
 
 
     return proteins
 
 
-@task
+#@task
 def create_activites(chembl_df, break_num):
     activities = pd.DataFrame()
     activities = activities.assign(
@@ -361,7 +342,7 @@ def create_activites(chembl_df, break_num):
     return activities
 
 
-@flow
+#@flow
 def main():
     print("Starting Main")
 
@@ -374,6 +355,7 @@ def main():
     df = load_chembl("data/chembl/chembl.db", "data/chembl/chembl.csv")
     print("Loading molecules...")
     molecules = create_molecules(df, max_table_len)
+    print("Saving molecules")
     molecules.to_csv("molecules.csv", index=False)
 
     print("Loading proteins...")
@@ -384,10 +366,10 @@ def main():
     activites = create_activites(df, max_table_len)
     activites.to_csv("activites.csv", index=False)
 
-    # con = create_connection()
-    # molecules.to_sql(con=con, name='molecules', schema='SCHEMA', index=False, if_exists='append')
-    # proteins.to_sql(con=con, name='proteins', schema='SCHEMA', index=False, if_exists='append')
-    # activites.to_sql(con=con, name='activites', schema='SCHEMA', index=False, if_exists='append')
+    con = create_connection()
+    molecules.to_sql(con=con, name='molecules', schema='SCHEMA', index=False, if_exists='append')
+    proteins.to_sql(con=con, name='proteins', schema='SCHEMA', index=False, if_exists='append')
+    activites.to_sql(con=con, name='activites', schema='SCHEMA', index=False, if_exists='append')
     print("done")
 
 if __name__ == "__main__":
