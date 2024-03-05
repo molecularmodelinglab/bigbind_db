@@ -356,15 +356,15 @@ def main():
     print("Loading molecules...")
     molecules = create_molecules(df, max_table_len)
     print("Saving molecules")
-    molecules.to_csv("molecules.csv", index=False)
+    # molecules.to_csv("molecules.csv", index=False)
 
     print("Loading proteins...")
     proteins = create_proteins(df, max_table_len)
-    proteins.to_csv("proteins.csv", index=False)
+    # proteins.to_csv("proteins.csv", index=False)
 
     print("Loading activities...")
     activites = create_activites(df, max_table_len)
-    activites.to_csv("activites.csv", index=False)
+    # activites.to_csv("activites.csv", index=False)
 
     con = create_connection()
     molecules.to_sql(con=con, name='molecules', schema='SCHEMA', index=False, if_exists='append')
