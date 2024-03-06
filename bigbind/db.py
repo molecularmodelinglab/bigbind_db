@@ -1,7 +1,7 @@
 import os
 import sqlite3
 
-from config import CONFIG
+from bigbind.config import CONFIG
 
 def create_connection():
     """ create a database connection to the BigBind database """

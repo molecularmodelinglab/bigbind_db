@@ -12,14 +12,12 @@ from pyfaidx import Fasta
 from rdkit import Chem
 from rdkit.Chem.Draw import IPythonConsole
 IPythonConsole.ipython_3d = True
-import py3Dmol
 from rdkit.Chem import rdDepictor
 from rdkit.Chem import rdDistGeom
 import rdkit
 from rdkit.Chem import AllChem
 from pathlib import Path
-from prefect import flow, task, get_run_logger
-from db import create_connection
+from bigbind.db import create_connection
 from rdkit.Chem import Descriptors
 import yaml
 import multiprocessing as mp
@@ -131,7 +129,7 @@ def reporthook(count, block_size, total_size):
                     (percent, progress_size / (1024 * 1024), speed, duration))
     sys.stdout.flush()
 
-def load_chembl(desired_db_path, desired_csv_path):
+def download_chembl(desired_db_path, desired_csv_path):
     # Check if the CSV file exists
     if not os.path.isfile(desired_csv_path):
         print(f'{desired_csv_path} does not exist, downloading.')
@@ -343,7 +341,7 @@ def create_activites(chembl_df, break_num):
 
 
 #@flow
-def main():
+def load_chembl():
     print("Starting Main")
 
     configs = {}
@@ -352,7 +350,7 @@ def main():
 
     max_table_len = configs["max_table_len"]
 
-    df = load_chembl("data/chembl/chembl.db", "data/chembl/chembl.csv")
+    df = download_chembl("data/chembl/chembl.db", "data/chembl/chembl.csv")
     print("Loading molecules...")
     molecules = create_molecules(df, max_table_len)
     print("Saving molecules")
@@ -373,4 +371,4 @@ def main():
     print("done")
 
 if __name__ == "__main__":
-    main()
+    load_chembl()

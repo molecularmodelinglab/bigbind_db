@@ -19,4 +19,4 @@ def load_config(path):
 
     return cfg
 
-CONFIG = load_config("../configs/config.yml")
+CONFIG = load_config("configs/config.yml")
