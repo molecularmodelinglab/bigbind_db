@@ -8,6 +8,5 @@ def make_bigbind():
     create_tables()
     chembl_future = load_chembl()
 
-
 if __name__ == "__main__":
     make_bigbind()

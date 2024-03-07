@@ -188,7 +188,7 @@ def get_conformer(mol, chemblid):
 
 def molecules_sequence_chunk(molecules):
     for index, row in molecules.iterrows():
-        cur_mol = Chem.MolFromSmiles(row["canonical_smiles"])
+        cur_mol = Chem.MolFromSmiles(row["smiles"])
 
         # get molecular weight
         molecules.at[index, "molecular_weight"] = Descriptors.ExactMolWt(cur_mol)
@@ -201,15 +201,18 @@ def molecules_sequence_chunk(molecules):
         Path("data/molecules/conformers").mkdir(parents=True, exist_ok=True)
 
         molecules.at[index, "has_conformer"] = get_conformer(
-            cur_mol, row["compound_chembl_id"]
+            cur_mol, row["id"]
         )
     return molecules
 
 #@task
 def create_molecules(chembl_df, break_num):
     molecules = pd.DataFrame()
-    molecules = molecules.assign(compound_chembl_id=chembl_df["compound_chembl_id"])
-    molecules = molecules.assign(canonical_smiles=chembl_df["canonical_smiles"])
+    molecules = molecules.assign(id=chembl_df["compound_chembl_id"])
+    #dropping duplicates
+    molecules.drop_duplicates()
+    
+    molecules = molecules.assign(smiles=chembl_df["canonical_smiles"])
 
     # make empty columns
     molecules["molecular_weight"] = -1.0
@@ -237,6 +240,10 @@ def create_molecules(chembl_df, break_num):
     pool.close()
     print("joining pool")
     pool.join()
+    
+    molecules["id"] = [ int(''.join(c for c in x if c.isdigit())) for x in molecules["id"]]
+    #dropping duplicates again cuz it doesnt catch it all for some reason
+    molecules.drop_duplicates()
 
     return molecules
 
@@ -259,11 +266,11 @@ def extract_id(header):
 def proteins_sequence_chunk(proteins, sequences_complete, sequences_uncomplete):
     for index, row in proteins.iterrows():
 
-        if row["uniprotID"] in sequences_complete:
-            proteins.at[index, "protein_sequence"] = str(sequences_complete[row["uniprotID"]])
+        if row["id"] in sequences_complete:
+            proteins.at[index, "sequence"] = str(sequences_complete[row["id"]])
 
         else:
-            proteins.at[index, "protein_sequence"] = str(sequences_uncomplete[row["uniprotID"]])
+            proteins.at[index, "sequence"] = str(sequences_uncomplete[row["id"]])
 
     return proteins
 
@@ -284,14 +291,14 @@ def create_proteins(chembl_df, break_num):
     # make proteins Dataframe
     proteins = pd.DataFrame()
     # get ID's
-    proteins = proteins.assign(uniprotID=chembl_df["protein_accession"])
+    proteins = proteins.assign(id=chembl_df["protein_accession"])
     # remove duplicates
     proteins = proteins.drop_duplicates()
     #make it as big as our break_num
     proteins = proteins[:break_num]
 
     # add new column
-    proteins["protein_sequence"] = ""
+    proteins["sequence"] = ""
     print("loading fasta...")
     sequences_complete = Fasta(
         "data/uniprot/uniprot_sprot.fasta", key_function=extract_id
@@ -314,29 +321,40 @@ def create_proteins(chembl_df, break_num):
     
     
     proteins = pd.concat(result)
-
+    
+    #making sure its in form for sql table
+    proteins["id"] = [ int(''.join(c for c in x if c.isdigit())) for x in proteins["id"]]
+    proteins = proteins.drop_duplicates(subset=["id"])
+    proteins = proteins.drop_duplicates(subset=["sequence"])
 
     return proteins
 
 
 #@task
 def create_activites(chembl_df, break_num):
+    #breaking it to number
+    chembl_df = chembl_df[:break_num]
+    
+    
+    
     activities = pd.DataFrame()
     activities = activities.assign(
         # molecules for referance
-        compound_chembl_id=chembl_df["compound_chembl_id"],
-        canonical_smiles=chembl_df["canonical_smiles"],
+        ligand_id=chembl_df["compound_chembl_id"],
+        smiles=chembl_df["canonical_smiles"],
         # uniprotid protein reference
-        proteinID=chembl_df["protein_accession"],
+        protein_id=chembl_df["protein_accession"],
         # all the info related to molecule/protein
         standard_type=chembl_df["standard_type"],
         standard_relation=chembl_df["standard_relation"],
         standard_value=chembl_df["standard_value"],
         standard_units=chembl_df["standard_units"],
-        pchembl_value=chembl_df["pchembl_value"],
+        activity=chembl_df["pchembl_value"],
     )
-
-    activities = activities[:break_num]
+    #making sure they only contain numbers
+    activities["ligand_id"] = [ int(''.join(c for c in x if c.isdigit())) for x in activities["ligand_id"]]
+    activities["protien_id"] = [ int(''.join(c for c in x if c.isdigit())) for x in activities["protein_id"]]
+    activites = activites.drop_duplicates()
     return activities
 
 
