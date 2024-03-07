@@ -210,7 +210,7 @@ def create_molecules(chembl_df, break_num):
     molecules = pd.DataFrame()
     molecules = molecules.assign(id=chembl_df["compound_chembl_id"])
     #dropping duplicates
-    molecules.drop_duplicates()
+    molecules = molecules.drop_duplicates()
     
     molecules = molecules.assign(smiles=chembl_df["canonical_smiles"])
 
@@ -243,7 +243,8 @@ def create_molecules(chembl_df, break_num):
     
     molecules["id"] = [ int(''.join(c for c in x if c.isdigit())) for x in molecules["id"]]
     #dropping duplicates again cuz it doesnt catch it all for some reason
-    molecules.drop_duplicates()
+    molecules = molecules.drop_duplicates()
+    
 
     return molecules
 
