@@ -342,7 +342,6 @@ def create_activities(chembl_df, break_num):
     activities = activities.assign(
         # molecules for referance
         ligand_id=chembl_df["compound_chembl_id"],
-        smiles=chembl_df["canonical_smiles"],
         # uniprotid protein reference
         protein_id=chembl_df["protein_accession"],
         # all the info related to molecule/protein

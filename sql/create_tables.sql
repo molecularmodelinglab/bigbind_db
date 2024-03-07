@@ -8,7 +8,7 @@ CREATE TABLE `proteins` (
 );
 
 CREATE TABLE `molecules` (
-  `id` integer PRIMARY KEY,
+  `id` integer PRIMARY KEY,a
   `smiles` varchar,
   `has_conformer` boolean,
   `zinc_elements` boolean,
