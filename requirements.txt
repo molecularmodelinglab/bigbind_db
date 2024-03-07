@@ -1,4 +1,10 @@
+biopython
+omegaconf
+pandas
+prefect
+prefect
+pyfaidx
 rdkit
 sqlite3
-pandas
-biopython
+tqdm
+yaml
