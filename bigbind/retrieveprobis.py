@@ -103,7 +103,7 @@ for i,j in zip(pdb_files, cen_files):
           probisalign = alignment[1]
      probis_dict = dict(zip(np.arange(1,len(probisalign)+1), probisalign))
      mapping_dict = standardize_probis_dict2(probis_dict, probisres_dict)
-     seq_list2 =[ mapping_dict[i] for i in seq_list]
+     seq_list2 =[mapping_dict[i] for i in seq_list]
      seq_list2 = str(seq_list2)
      dflist = [pdb_code, chain_id, seq_list2]
      probis_tbl = add_data_to_example(con, probis_tbl, dflist)
