@@ -353,7 +353,7 @@ def create_activities(chembl_df, break_num):
     )
     #making sure they only contain numbers
     activities["ligand_id"] = [ int(''.join(c for c in x if c.isdigit())) for x in activities["ligand_id"]]
-    activities["protien_id"] = [ int(''.join(c for c in x if c.isdigit())) for x in activities["protein_id"]]
+    activities["protein_id"] = [ int(''.join(c for c in x if c.isdigit())) for x in activities["protein_id"]]
     activities = activities.drop_duplicates()
     return activities
 
