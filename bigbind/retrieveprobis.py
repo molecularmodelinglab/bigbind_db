@@ -93,7 +93,7 @@ for i,j in zip(pdb_files, cen_files):
           for residue in close_res:
                resseq = residue.get_full_id()[3][1]
                seq_list.append(resseq)
-     seq_list = str(sorted(set(seq_list)))
+     seq_list = sorted(set(seq_list))
      #res_list = sorted(set(res_list))
      prot_sequence = get_seq_index(pdb_code)
      seq_prot = Seq(prot_sequence)
