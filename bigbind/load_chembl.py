@@ -270,8 +270,10 @@ def proteins_sequence_chunk(proteins, sequences_complete, sequences_uncomplete):
         if row["id"] in sequences_complete:
             proteins.at[index, "sequence"] = str(sequences_complete[row["id"]])
 
-        else:
+        elif row["id"] in sequences_uncomplete:
             proteins.at[index, "sequence"] = str(sequences_uncomplete[row["id"]])
+        else:
+            proteins.at[index, "sequence"] = "none"
 
     return proteins
 
