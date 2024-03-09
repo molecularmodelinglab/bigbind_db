@@ -3,4 +3,12 @@ import pandas as pd
 import warnings
 from bigbind.probis_tables import add_example_table, add_data_to_example
 from bigbind.db import create_connection
-warnings.simplefilter('ignore', PDBConstructionWarning)
+
+con = create_connection()
+test_tbl = add_example_table(con)
+testlist = [1, 2, [1, 2, 3]]
+testlist2 = [1, 8, [3, 4, 5]]
+test_tbl = add_data_to_example(con, test_tbl, testlist)
+test_tbl = add_data_to_example(con, test_tbl, testlist2)
+
+print(pd.read_sql_query("SELECT * FROM example", con))
