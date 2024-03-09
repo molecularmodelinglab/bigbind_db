@@ -12,4 +12,4 @@ test_tbl = add_data_to_example(con, test_tbl, testlist)
 test_tbl = add_data_to_example(con, test_tbl, testlist2)
 
 print(pd.read_sql_query("SELECT * FROM example", con))
-print(pd.read_sql_query("SELECT group_concat(residues) FROM example WHERE pdbID := pdb GROUP BY pdbID, {'pdb' : 101m}"), con)
+print(pd.read_sql_query("SELECT group_concat(residues) FROM example WHERE pdbID := pdb GROUP BY pdbID, {'pdb' : 101m}", con))
