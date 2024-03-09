@@ -6,8 +6,8 @@ from bigbind.db import create_connection
 
 con = create_connection()
 test_tbl = add_example_table(con)
-testlist = [1, 2, [1, 2, 3]]
-testlist2 = [1, 8, [3, 4, 5]]
+testlist = [1, 2, str([1, 2, 3])]
+testlist2 = [1, 8, str([3, 4, 5])]
 test_tbl = add_data_to_example(con, test_tbl, testlist)
 test_tbl = add_data_to_example(con, test_tbl, testlist2)
 
