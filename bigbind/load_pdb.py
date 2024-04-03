@@ -1,19 +1,61 @@
-# imports :)
+import biotite.structure.io.pdbx as pdbx
 import numpy as np
+import pandas as pd
+import os
 import biotite
 from rdkit import Chem
 from rdkit.Chem import MolToSmiles
 from collections import Counter
 from PyAstronomy import pyasl
 an = pyasl.AtomicNo()
-import biotite.structure.io.pdbx as pdbx
 from collections import OrderedDict
-import pandas as pd
-import os
 import tqdm as tqdm
+import sqlite3
+from bigbind.db import create_connection
+from bigbind.config import CONFIG
+
+
+
+
+def proteins_from_cif(file_path):
+    pdbx_file = pdbx.PDBxFile.read(file_path)
+    poly = pdbx_file.get('entity_poly')
+
+    prot_comps = []
+
+    if type(poly['type']) == str:
+        if poly['type'] != 'polydeoxyribonucleotide':
+            for i in poly['pdbx_strand_id'].split(','):
+                if 'X' in poly['pdbx_seq_one_letter_code_can']:
+                    prot_comps.append([list(pdbx_file.keys())[0][0], poly['pdbx_seq_one_letter_code'], i])
+                else:
+                    prot_comps.append([list(pdbx_file.keys())[0][0], poly['pdbx_seq_one_letter_code_can'], i])
+    else:
+        for p in enumerate(poly['type']):
+            if p[1] != 'polydeoxyribonucleotide':
+                new_chains = poly['pdbx_strand_id'][p[0]].split(",")
+                for n in new_chains:
+                    if 'X' in poly['pdbx_seq_one_letter_code_can'][p[0]]:
+                        prot_comps.append([list(pdbx_file.keys())[0][0], poly['pdbx_seq_one_letter_code'][p[0]], n])
+                    else:
+                        prot_comps.append([list(pdbx_file.keys())[0][0], poly['pdbx_seq_one_letter_code_can'][p[0]], n])
+
+    return prot_comps
+
+def create_protcomps(dir_path):
+    prots = []
+    for x in os.listdir(dir_path):
+        path1 = os.path.join(dir_path, x)
+        singleprot = proteins_from_cif(path1)
+        if singleprot != None:
+            for m in singleprot:
+                prots.append(m)
+            
+    df = pd.DataFrame(prots, columns = ['Entry', 'Sequence', 'Chain'])
+    return df
 
 def add_formal_charges(m):
-    # fix this shit please --> there has to be a better way
+    # lol
     m.UpdatePropertyCache(strict=False)
     for at in m.GetAtoms():
         if at.GetAtomicNum() == 7 and at.GetExplicitValence()==4 and at.GetFormalCharge()==0:
@@ -54,7 +96,6 @@ def mol_from_stack (stack, bonds):
     Chem.SanitizeMol(mol)
     smile = MolToSmiles(mol)
     return smile
-
 
 
 
@@ -103,15 +144,11 @@ def cif_to_mols(file_path):
                 if working_stack.shape != (0,):
                     resname = working_stack[0].res_name
                     working_bonds = biotite.structure.connect_via_residue_names(working_stack)
-                    mol_list.append([list(pdbx_file.keys())[0][0], resname, chain, res, mol_from_stack(working_stack, working_bonds.as_array())])
+                    mol_list.append([list(pdbx_file.keys())[0][0], chain, resname, res, mol_from_stack(working_stack, working_bonds.as_array())])
         
         return mol_list
 
-
-
-if __name__ == '__main__':
-    print('hii')
-    dir_path = "C:\\Users\\anees\\Downloads\\randomfolder1" # insert file path here
+def create_ligcomps(dir_path):
     mols = []
     for x in os.listdir(dir_path):
         path1 = os.path.join(dir_path, x)
@@ -120,5 +157,44 @@ if __name__ == '__main__':
             for m in singlelig:
                 mols.append(m)
             
-    df = pd.DataFrame(mols, columns = ['Entry', 'Res', 'Chain','Res_ID', 'smiles'])
-    print(df)
+    df = pd.DataFrame(mols, columns = ['Entry', 'Chain', 'Residue','Res_ID', 'smiles'])
+    return df
+
+#def create_temp_comps(dir_path):
+
+def create_structures(dir_path):
+    structs_list = []
+    for x in os.listdir(dir_path):
+        path1 = os.path.join(dir_path, x)
+        pdbx_file = pdbx.PDBxFile.read(path1)
+        pdbid = pdbx_file.get('exptl')['entry_id']
+        expmethod = pdbx_file.get('exptl')['method']
+        try:
+            resolution = float(pdbx_file.get('refine')['ls_d_res_high'])
+        except:
+            resolution = float(pdbx_file.get('em_3d_reconstruction')['resolution'])
+        structs_list.append([pdbid, expmethod, resolution])
+    structures = pd.DataFrame(structs_list, columns = ['pdb', 'type', 'resolution'])
+    return structures
+
+
+
+def load_pdb():
+
+    pdbs = "C:\\Users\\anees\\Downloads\\randomfolder1" # change to whatever path of cifs is later
+
+    #protein_components = create_protcomps(pdbs)
+
+    #ligand_components = create_ligcomps(pdbs)
+
+    structures = create_structures(pdbs)
+
+    con = create_connection()
+    
+    structures.to_sql(con=con, name='structures', schema='SCHEMA', index=True, index_label='id', if_exists='replace')
+    #protein_components.to_sql(con=con, name='protein_components', schema='SCHEMA', index=False, if_exists='append')
+    #ligand_components.to_sql(con=con, name='ligand_components', schema='SCHEMA', index=False, if_exists='append')
+
+if __name__ == "__main__":
+    load_pdb()
+    

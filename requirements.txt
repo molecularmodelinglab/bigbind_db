@@ -8,3 +8,4 @@ rdkit
 sqlite3
 tqdm
 yaml
+biotite
