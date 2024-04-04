@@ -179,7 +179,7 @@ def load_tanimoto_matrix():
     
     #tmp csv 
     #TODO CHANGE THIS TO ACTUALLY GETTING A QUERY FOR THE TABLE ON SQL
-    df = pd.read_csv(f"{cfg['data_dir']}/csv_of_df/csv_files/csv_files/molecules.csv")
+    df = get_mol_df()
     #actual jazz
     fps = get_morgan_fps_parallel(cfg, df)
     tm = get_tanimoto_matrix(cfg, fps[1])
