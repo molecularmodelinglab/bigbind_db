@@ -157,6 +157,12 @@ def matrix_to_sql(matrix):
     df["similarity"] = val
     df.to_sql(con=con, name='molecule_similarity', schema='SCHEMA', index=False, if_exists='append')
 
+def get_mol_df():
+    con = create_connection
+    query = con.execute("SELECT * FROM molecules;")
+    df = pd.DataFrame(query.fetchall())
+    df.columns = query.keys()
+    return df
 
 #main
 @flow
