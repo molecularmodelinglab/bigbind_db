@@ -9,6 +9,6 @@ from bigbind.tanimoto_matrix import load_tanimoto_matrix
 def make_bigbind():
     create_tables()
     chembl_future = load_chembl()
-    # tanimoto = load_tanimoto_matrix()
+    tanimoto = load_tanimoto_matrix()
 if __name__ == "__main__":
     make_bigbind()
