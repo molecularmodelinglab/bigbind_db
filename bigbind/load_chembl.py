@@ -25,6 +25,7 @@ from functools import partial
 import logging
 import signal 
 from concurrent import futures
+from bigbind.config import CONFIG
 
 
 log = logging.getLogger(__name__)
@@ -364,30 +365,29 @@ def create_activities(chembl_df, break_num):
 def load_chembl():
     print("Starting Main")
 
-    configs = {}
-    with open('configs/default.yml') as info:
-        configs = yaml.safe_load(info)
+    configs = CONFIG
 
     max_table_len = configs["max_table_len"]
+    print(max_table_len)
+    
+    # df = download_chembl("data/chembl/chembl.db", "data/chembl/chembl.csv")
+    # print("Loading molecules...")
+    # molecules = create_molecules(df, max_table_len)
+    # print("Saving molecules")
+    # # molecules.to_csv("molecules.csv", index=False)
 
-    df = download_chembl("data/chembl/chembl.db", "data/chembl/chembl.csv")
-    print("Loading molecules...")
-    molecules = create_molecules(df, max_table_len)
-    print("Saving molecules")
-    # molecules.to_csv("molecules.csv", index=False)
+    # print("Loading proteins...")
+    # proteins = create_proteins(df, max_table_len)
+    # # proteins.to_csv("proteins.csv", index=False)
 
-    print("Loading proteins...")
-    proteins = create_proteins(df, max_table_len)
-    # proteins.to_csv("proteins.csv", index=False)
+    # print("Loading activities...")
+    # activities = create_activities(df, max_table_len)
+    # # activities.to_csv("activities.csv", index=False)
 
-    print("Loading activities...")
-    activities = create_activities(df, max_table_len)
-    # activities.to_csv("activities.csv", index=False)
-
-    con = create_connection()
-    molecules.to_sql(con=con, name='molecules', schema='SCHEMA', index=False, if_exists='append')
-    proteins.to_sql(con=con, name='proteins', schema='SCHEMA', index=False, if_exists='append')
-    activities.to_sql(con=con, name='activities', schema='SCHEMA', index=False, if_exists='append')
+    # con = create_connection()
+    # molecules.to_sql(con=con, name='molecules', schema='SCHEMA', index=False, if_exists='append')
+    # proteins.to_sql(con=con, name='proteins', schema='SCHEMA', index=False, if_exists='append')
+    # activities.to_sql(con=con, name='activities', schema='SCHEMA', index=False, if_exists='append')
     print("done")
 
 if __name__ == "__main__":
