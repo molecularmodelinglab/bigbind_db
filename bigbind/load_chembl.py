@@ -135,7 +135,7 @@ def download_chembl(desired_db_path, desired_csv_path):
         print(f'{desired_csv_path} does not exist, downloading.')
         chembl_tarred = urllib.request.urlretrieve(
             "https://ftp.ebi.ac.uk/pub/databases/chembl/ChEMBLdb/latest/chembl_33_sqlite.tar.gz",
-            "./download/chembl_33_sqlite.tar.gz",
+            "./temp_data/chembl_33_sqlite.tar.gz",
             reporthook
         )[0]
         print(f'{desired_csv_path} downloaded')
