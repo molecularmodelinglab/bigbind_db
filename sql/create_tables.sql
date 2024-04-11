@@ -28,7 +28,7 @@ CREATE TABLE `activities` (
 );
 
 CREATE TABLE `structures` (
-  `id` integer PRIMARY KEY,
+  `id` varchar PRIMARY KEY,
   `pdb` varchar,
   `type` varchar,
   `resolution` float,
@@ -37,9 +37,9 @@ CREATE TABLE `structures` (
 
 CREATE TABLE `components` (
   `id` integer PRIMARY KEY,
-  `structure_id` integer,
+  `structure_id` varchar,
   `chain` varchar,
-  `residue` varchar,
+  `residue` integer,
   `type` varchar,
   FOREIGN KEY (`structure_id`) REFERENCES `structures` (`id`),
   CONSTRAINT `chain_residue_unique` UNIQUE (`structure_id`, `chain`, `residue`)
