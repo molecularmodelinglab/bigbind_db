@@ -10,8 +10,6 @@ from tqdm import tqdm
 import urllib.request
 from pyfaidx import Fasta
 from rdkit import Chem
-from rdkit.Chem.Draw import IPythonConsole
-IPythonConsole.ipython_3d = True
 from rdkit.Chem import rdDepictor
 from rdkit.Chem import rdDistGeom
 import rdkit
