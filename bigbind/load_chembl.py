@@ -25,6 +25,7 @@ from functools import partial
 import logging
 import signal 
 from concurrent import futures
+from bigbind.config import CONFIG
 
 
 log = logging.getLogger(__name__)
@@ -134,7 +135,7 @@ def download_chembl(desired_db_path, desired_csv_path):
     if not os.path.isfile(desired_csv_path):
         print(f'{desired_csv_path} does not exist, downloading.')
         chembl_tarred = urllib.request.urlretrieve(
-            "https://ftp.ebi.ac.uk/pub/databases/chembl/ChEMBLdb/latest/chembl_33_sqlite.tar.gz",
+            f"https://ftp.ebi.ac.uk/pub/databases/chembl/ChEMBLdb/latest/chembl_{CONFIG.chembl_version}_sqlite.tar.gz",
             "./temp_data/chembl_33_sqlite.tar.gz",
             reporthook
         )[0]
@@ -344,11 +345,7 @@ def create_activites(chembl_df, break_num):
 def load_chembl():
     print("Starting Main")
 
-    configs = {}
-    with open('configs/default.yml') as info:
-        configs = yaml.safe_load(info)
-
-    max_table_len = configs["max_table_len"]
+    max_table_len = CONFIG.max_table_len
 
     df = download_chembl("data/chembl/chembl.db", "data/chembl/chembl.csv")
     print("Loading molecules...")
