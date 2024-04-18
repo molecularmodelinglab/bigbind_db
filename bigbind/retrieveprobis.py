@@ -118,3 +118,5 @@ for i,j in zip(pdb_files, cen_files):
 #print(pd.read_sql_query("SELECT group_concat(residues) FROM example WHERE pdbID := pdb GROUP BY pdbID, {'pdb' : 101m}", con))
      #print(type(pdb_code), type(chain.id), type(res_list))
 print(pd.read_sql_query("SELECT * FROM example LIMIT 50", con))
+
+
