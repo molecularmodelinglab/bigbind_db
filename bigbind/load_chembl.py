@@ -187,7 +187,7 @@ def get_conformer(mol, chemblid):
 
 def molecules_sequence_chunk(molecules):
     for index, row in molecules.iterrows():
-        cur_mol = Chem.MolFromSmiles(row["canonical_smiles"])
+        cur_mol = Chem.MolFromSmiles(row["smiles"])
 
         # get molecular weight
         molecules.at[index, "molecular_weight"] = Descriptors.ExactMolWt(cur_mol)
@@ -200,15 +200,15 @@ def molecules_sequence_chunk(molecules):
         Path("data/molecules/conformers").mkdir(parents=True, exist_ok=True)
 
         molecules.at[index, "has_conformer"] = get_conformer(
-            cur_mol, row["compound_chembl_id"]
+            cur_mol, row["chembl_id"]
         )
     return molecules
 
 #@task
 def create_molecules(chembl_df, break_num):
     molecules = pd.DataFrame()
-    molecules = molecules.assign(compound_chembl_id=chembl_df["compound_chembl_id"])
-    molecules = molecules.assign(canonical_smiles=chembl_df["canonical_smiles"])
+    molecules = molecules.assign(chembl_id=chembl_df["compound_chembl_id"])
+    molecules = molecules.assign(smiles=chembl_df["canonical_smiles"])
 
     # make empty columns
     molecules["molecular_weight"] = -1.0
@@ -344,25 +344,25 @@ def load_chembl():
     print("Starting Main")
 
     max_table_len = CONFIG.max_table_len
+    con = create_connection()
 
     df = download_chembl("data/chembl/chembl.db", "data/chembl/chembl.csv")
     print("Loading molecules...")
     molecules = create_molecules(df, max_table_len)
-    print("Saving molecules")
+    molecules.to_sql(con=con, name='molecules', schema='SCHEMA', index=False, if_exists='append')
+    # print("Saving molecules")
     # molecules.to_csv("molecules.csv", index=False)
 
     print("Loading proteins...")
     proteins = create_proteins(df, max_table_len)
+    proteins.to_sql(con=con, name='proteins', schema='SCHEMA', index=False, if_exists='append')
     # proteins.to_csv("proteins.csv", index=False)
 
     print("Loading activities...")
     activites = create_activites(df, max_table_len)
+    activites.to_sql(con=con, name='activites', schema='SCHEMA', index=False, if_exists='append')
     # activites.to_csv("activites.csv", index=False)
 
-    con = create_connection()
-    molecules.to_sql(con=con, name='molecules', schema='SCHEMA', index=False, if_exists='append')
-    proteins.to_sql(con=con, name='proteins', schema='SCHEMA', index=False, if_exists='append')
-    activites.to_sql(con=con, name='activites', schema='SCHEMA', index=False, if_exists='append')
     print("done")
 
 if __name__ == "__main__":

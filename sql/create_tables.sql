@@ -15,6 +15,7 @@ CREATE TABLE `molecules` (
   `num_components` integer,
   `molecular_weight` integer,
   `tanimoto_split` varchar,
+  `chembl_id` varchar,
   CONSTRAINT `smiles_unique` UNIQUE (`smiles`)
 );
 
