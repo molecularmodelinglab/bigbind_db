@@ -114,9 +114,7 @@ for i,j in zip(pdb_files, cen_files):
      #[i[0], i[1], i[3]] for i in full_list
 #)
 #probisdf = probisdf.rename({0: 'PDB ID', 1: 'Chain ID', 2: 'Sequence ID\'s of binding site residues'}, axis='columns')
-#print(pd.read_sql_query("SELECT * FROM example LIMIT 50", con))
 #print(pd.read_sql_query("SELECT id, pdbID, group_concat(residues) FROM example GROUP BY pdbID", con))
-print(pd.read_sql_query("SELECT group_concat(residues) FROM example WHERE pdbID := pdb GROUP BY pdbID, {'pdb' : 101m}", con))
+#print(pd.read_sql_query("SELECT group_concat(residues) FROM example WHERE pdbID := pdb GROUP BY pdbID, {'pdb' : 101m}", con))
      #print(type(pdb_code), type(chain.id), type(res_list))
-
-
+print(pd.read_sql_query("SELECT * FROM example LIMIT 50", con))
