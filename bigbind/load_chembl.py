@@ -208,6 +208,8 @@ def create_molecules(chembl_df, break_num):
     molecules = pd.DataFrame()
     molecules = molecules.assign(chembl_id=chembl_df["compound_chembl_id"])
     molecules = molecules.assign(smiles=chembl_df["canonical_smiles"])
+    #dropping duplicates 
+    molecules = molecules.drop_duplicates()
 
     # make empty columns
     molecules["molecular_weight"] = -1.0
@@ -235,6 +237,9 @@ def create_molecules(chembl_df, break_num):
     pool.close()
     print("joining pool")
     pool.join()
+    
+    molecules["id"] = [ int(''.join(c for c in x if c.isdigit())) for x in molecules["id"]]
+    
 
     return molecules
 
@@ -257,11 +262,13 @@ def extract_id(header):
 def proteins_sequence_chunk(proteins, sequences_complete, sequences_uncomplete):
     for index, row in proteins.iterrows():
 
-        if row["uniprotID"] in sequences_complete:
-            proteins.at[index, "protein_sequence"] = str(sequences_complete[row["uniprotID"]])
+        if row["id"] in sequences_complete:
+            proteins.at[index, "sequence"] = str(sequences_complete[row["id"]])
 
+        elif row["id"] in sequences_uncomplete:
+            proteins.at[index, "sequence"] = str(sequences_uncomplete[row["id"]])
         else:
-            proteins.at[index, "protein_sequence"] = str(sequences_uncomplete[row["uniprotID"]])
+            proteins.at[index, "sequence"] = "none"
 
     return proteins
 
@@ -282,14 +289,14 @@ def create_proteins(chembl_df, break_num):
     # make proteins Dataframe
     proteins = pd.DataFrame()
     # get ID's
-    proteins = proteins.assign(uniprotID=chembl_df["protein_accession"])
+    proteins = proteins.assign(id=chembl_df["protein_accession"])
     # remove duplicates
     proteins = proteins.drop_duplicates()
     #make it as big as our break_num
     proteins = proteins[:break_num]
 
     # add new column
-    proteins["protein_sequence"] = ""
+    proteins["sequence"] = ""
     print("loading fasta...")
     sequences_complete = Fasta(
         "data/uniprot/uniprot_sprot.fasta", key_function=extract_id
@@ -312,29 +319,39 @@ def create_proteins(chembl_df, break_num):
     
     
     proteins = pd.concat(result)
-
+    
+    #making sure its in form for sql table
+    proteins["id"] = [ int(''.join(c for c in x if c.isdigit())) for x in proteins["id"]]
+    proteins = proteins.drop_duplicates(subset=["id"])
+    proteins = proteins.drop_duplicates(subset=["sequence"])
 
     return proteins
 
 
 #@task
-def create_activites(chembl_df, break_num):
+def create_activities(chembl_df, break_num):
+    #breaking it to number
+    chembl_df = chembl_df[:break_num]
+    
+    
+    
     activities = pd.DataFrame()
     activities = activities.assign(
         # molecules for referance
-        compound_chembl_id=chembl_df["compound_chembl_id"],
-        canonical_smiles=chembl_df["canonical_smiles"],
+        ligand_id=chembl_df["compound_chembl_id"],
         # uniprotid protein reference
-        proteinID=chembl_df["protein_accession"],
+        protein_id=chembl_df["protein_accession"],
         # all the info related to molecule/protein
         standard_type=chembl_df["standard_type"],
         standard_relation=chembl_df["standard_relation"],
         standard_value=chembl_df["standard_value"],
         standard_units=chembl_df["standard_units"],
-        pchembl_value=chembl_df["pchembl_value"],
+        activity=chembl_df["pchembl_value"],
     )
-
-    activities = activities[:break_num]
+    #making sure they only contain numbers
+    activities["ligand_id"] = [ int(''.join(c for c in x if c.isdigit())) for x in activities["ligand_id"]]
+    activities["protein_id"] = [ int(''.join(c for c in x if c.isdigit())) for x in activities["protein_id"]]
+    activities = activities.drop_duplicates()
     return activities
 
 
@@ -344,7 +361,6 @@ def load_chembl():
 
     max_table_len = CONFIG.max_table_len
     con = create_connection()
-
     df = download_chembl("data/chembl/chembl.db", "data/chembl/chembl.csv")
     print("Loading molecules...")
     molecules = create_molecules(df, max_table_len)
@@ -358,10 +374,9 @@ def load_chembl():
     # proteins.to_csv("proteins.csv", index=False)
 
     print("Loading activities...")
-    activites = create_activites(df, max_table_len)
-    activites.to_sql(con=con, name='activites', schema='SCHEMA', index=False, if_exists='append')
-    # activites.to_csv("activites.csv", index=False)
-
+    activities = create_activities(df, max_table_len)
+    # activities.to_csv("activities.csv", index=False)
+    activities.to_sql(con=con, name='activities', schema='SCHEMA', index=False, if_exists='append')
     print("done")
 
 if __name__ == "__main__":

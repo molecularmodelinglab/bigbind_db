@@ -24,6 +24,10 @@ CREATE TABLE `activities` (
   `ligand_id` integer,
   `type` varchar,
   `activity` float,
+  `standard_relation` varchar,
+  `standard_type` varchar,
+  `standard_value` float, 
+  `standard_units` varchar,
   FOREIGN KEY (`ligand_id`) REFERENCES `molecules` (`id`),
   FOREIGN KEY (`protein_id`) REFERENCES `proteins` (`id`)
 );
