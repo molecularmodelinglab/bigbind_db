@@ -10,8 +10,6 @@ from tqdm import tqdm
 import urllib.request
 from pyfaidx import Fasta
 from rdkit import Chem
-from rdkit.Chem.Draw import IPythonConsole
-IPythonConsole.ipython_3d = True
 from rdkit.Chem import rdDepictor
 from rdkit.Chem import rdDistGeom
 import rdkit
@@ -135,8 +133,8 @@ def download_chembl(desired_db_path, desired_csv_path):
     if not os.path.isfile(desired_csv_path):
         print(f'{desired_csv_path} does not exist, downloading.')
         chembl_tarred = urllib.request.urlretrieve(
-            "https://ftp.ebi.ac.uk/pub/databases/chembl/ChEMBLdb/latest/chembl_33_sqlite.tar.gz",
-            "./download/chembl_33_sqlite.tar.gz",
+            f"https://ftp.ebi.ac.uk/pub/databases/chembl/ChEMBLdb/latest/chembl_{CONFIG.chembl_version}_sqlite.tar.gz",
+            "./temp_data/chembl_33_sqlite.tar.gz",
             reporthook
         )[0]
         print(f'{desired_csv_path} downloaded')
@@ -202,18 +200,17 @@ def molecules_sequence_chunk(molecules):
         Path("data/molecules/conformers").mkdir(parents=True, exist_ok=True)
 
         molecules.at[index, "has_conformer"] = get_conformer(
-            cur_mol, row["id"]
+            cur_mol, row["chembl_id"]
         )
     return molecules
 
 #@task
 def create_molecules(chembl_df, break_num):
     molecules = pd.DataFrame()
-    molecules = molecules.assign(id=chembl_df["compound_chembl_id"])
-    #dropping duplicates
-    molecules = molecules.drop_duplicates()
-    
+    molecules = molecules.assign(chembl_id=chembl_df["compound_chembl_id"])
     molecules = molecules.assign(smiles=chembl_df["canonical_smiles"])
+    #dropping duplicates 
+    molecules = molecules.drop_duplicates()
 
     # make empty columns
     molecules["molecular_weight"] = -1.0
@@ -243,8 +240,6 @@ def create_molecules(chembl_df, break_num):
     pool.join()
     
     molecules["id"] = [ int(''.join(c for c in x if c.isdigit())) for x in molecules["id"]]
-    #dropping duplicates again cuz it doesnt catch it all for some reason
-    molecules = molecules.drop_duplicates()
     
 
     return molecules
@@ -365,18 +360,18 @@ def create_activities(chembl_df, break_num):
 def load_chembl():
     print("Starting Main")
 
-    configs = CONFIG
-
-    max_table_len = configs["max_table_len"]
-    
+    max_table_len = CONFIG.max_table_len
+    con = create_connection()
     df = download_chembl("data/chembl/chembl.db", "data/chembl/chembl.csv")
     print("Loading molecules...")
     molecules = create_molecules(df, max_table_len)
-    print("Saving molecules")
+    molecules.to_sql(con=con, name='molecules', schema='SCHEMA', index=False, if_exists='append')
+    # print("Saving molecules")
     # molecules.to_csv("molecules.csv", index=False)
 
     print("Loading proteins...")
     proteins = create_proteins(df, max_table_len)
+    proteins.to_sql(con=con, name='proteins', schema='SCHEMA', index=False, if_exists='append')
     # proteins.to_csv("proteins.csv", index=False)
 
     print("Loading activities...")
