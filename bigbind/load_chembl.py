@@ -377,10 +377,6 @@ def load_chembl():
     print("Loading activities...")
     activities = create_activities(df, max_table_len)
     # activities.to_csv("activities.csv", index=False)
-
-    con = create_connection()
-    molecules.to_sql(con=con, name='molecules', schema='SCHEMA', index=False, if_exists='append')
-    proteins.to_sql(con=con, name='proteins', schema='SCHEMA', index=False, if_exists='append')
     activities.to_sql(con=con, name='activities', schema='SCHEMA', index=False, if_exists='append')
     print("done")
 
