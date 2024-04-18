@@ -27,9 +27,9 @@ CREATE TABLE `activities` (
   `standard_relation` varchar,
   `standard_type` varchar,
   `standard_value` float, 
-  `standard_units` varchar,
-  FOREIGN KEY (`ligand_id`) REFERENCES `molecules` (`id`),
-  FOREIGN KEY (`protein_id`) REFERENCES `proteins` (`id`)
+  `standard_units` varchar
+  -- FOREIGN KEY (`ligand_id`) REFERENCES `molecules` (`id`),
+  -- FOREIGN KEY (`protein_id`) REFERENCES `proteins` (`id`)
 );
 
 CREATE TABLE `structures` (

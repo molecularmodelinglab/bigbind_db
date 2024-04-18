@@ -138,31 +138,28 @@ def get_full_tanimoto_matrix(cfg, activities, smi_list, lig_sim_mat):
     return scipy.sparse.coo_array((new_data, (new_row, new_col)), shape=lig_sim_mat.shape, copy=False)
 
 #gets matrix and connects to the sql db and outputs it there
-def matrix_to_sql(matrix):
-    con = create_connection
+def matrix_to_sql(matrix, mol_df):
+    con = create_connection()
     print("populating df")
     nonzeroinx = matrix.nonzero()
-    mol1id = nonzeroinx[0]
-    mol2id = nonzeroinx[1]
+    mol1idx = nonzeroinx[0]
+    mol2idx = nonzeroinx[1]
     arr = matrix.toarray()
     val = []
-    for i in tqdm(range(len(mol1id))):
-        val.append(arr[mol1id[i]][mol2id[i]])
+    for i in tqdm(range(len(mol1idx))):
+        val.append(arr[mol1idx[i]][mol2idx[i]])
     
     
-    
+    print(mol_df.iloc[mol1idx])
     df = pd.DataFrame()
-    df["mol_1_id"] = mol1id
-    df["mol_2_id"] = mol2id
+    df["mol_1_id"] = mol_df.iloc[mol1idx].id
+    df["mol_2_id"] = mol_df.iloc[mol2idx].id
     df["similarity"] = val
     df.to_sql(con=con, name='molecule_similarity', schema='SCHEMA', index=False, if_exists='append')
 
 def get_mol_df():
-    con = create_connection
-    query = con.execute("SELECT * FROM molecules;")
-    df = pd.DataFrame(query.fetchall())
-    df.columns = query.keys()
-    return df
+    con = create_connection()
+    return pd.read_sql_query("SELECT * FROM molecules", con)
 
 #main
 @flow
@@ -184,7 +181,7 @@ def load_tanimoto_matrix():
     fps = get_morgan_fps_parallel(cfg, df)
     tm = get_tanimoto_matrix(cfg, fps[1])
     
-    matrix_to_sql(tm)
+    matrix_to_sql(tm, df)
 
 # SEED = 49
 # random.seed(SEED)

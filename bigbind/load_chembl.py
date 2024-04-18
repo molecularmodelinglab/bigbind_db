@@ -238,7 +238,7 @@ def create_molecules(chembl_df, break_num):
     print("joining pool")
     pool.join()
     
-    molecules["id"] = [ int(''.join(c for c in x if c.isdigit())) for x in molecules["id"]]
+    molecules["chembl_id"] = [ int(''.join(c for c in x if c.isdigit())) for x in molecules["chembl_id"]]
     
 
     return molecules
@@ -262,11 +262,11 @@ def extract_id(header):
 def proteins_sequence_chunk(proteins, sequences_complete, sequences_uncomplete):
     for index, row in proteins.iterrows():
 
-        if row["id"] in sequences_complete:
-            proteins.at[index, "sequence"] = str(sequences_complete[row["id"]])
+        if row["uniprot"] in sequences_complete:
+            proteins.at[index, "sequence"] = str(sequences_complete[row["uniprot"]])
 
-        elif row["id"] in sequences_uncomplete:
-            proteins.at[index, "sequence"] = str(sequences_uncomplete[row["id"]])
+        elif sequences_uncomplete is not None and row["uniprot"] in sequences_uncomplete:
+            proteins.at[index, "sequence"] = str(sequences_uncomplete[row["uniprot"]])
         else:
             proteins.at[index, "sequence"] = "none"
 
@@ -289,7 +289,7 @@ def create_proteins(chembl_df, break_num):
     # make proteins Dataframe
     proteins = pd.DataFrame()
     # get ID's
-    proteins = proteins.assign(id=chembl_df["protein_accession"])
+    proteins = proteins.assign(uniprot=chembl_df["protein_accession"])
     # remove duplicates
     proteins = proteins.drop_duplicates()
     #make it as big as our break_num
@@ -301,9 +301,12 @@ def create_proteins(chembl_df, break_num):
     sequences_complete = Fasta(
         "data/uniprot/uniprot_sprot.fasta", key_function=extract_id
     )
-    sequences_uncomplete = Fasta(
-        "data/uniprot/uniprot_trembl.fasta", key_function=extract_id
-    )
+    if not CONFIG.only_use_complete_uniprots:
+        sequences_uncomplete = Fasta(
+            "data/uniprot/uniprot_trembl.fasta", key_function=extract_id
+        )
+    else:
+        sequences_uncomplete = None
 
     # Job parameters
     n_jobs = mp.cpu_count() // 2  # Poolsize
@@ -321,8 +324,8 @@ def create_proteins(chembl_df, break_num):
     proteins = pd.concat(result)
     
     #making sure its in form for sql table
-    proteins["id"] = [ int(''.join(c for c in x if c.isdigit())) for x in proteins["id"]]
-    proteins = proteins.drop_duplicates(subset=["id"])
+    # proteins["id"] = [ int(''.join(c for c in x if c.isdigit())) for x in proteins["id"]]
+    # proteins = proteins.drop_duplicates(subset=["id"])
     proteins = proteins.drop_duplicates(subset=["sequence"])
 
     return proteins
