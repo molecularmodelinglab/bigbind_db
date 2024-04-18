@@ -65,10 +65,9 @@ def get_chembl_con(chembl_db_file):
     return con
 
 
-def get_crossdocked_chembl_activities(csv_path, con, prev_output=None):
+def get_chembl_activities(csv_path, con, prev_output=None):
     """Get all activities (with some filtering for quality) of small
-    molecules binding to proteins whose structures are in the crossdocked
-    dataset"""
+    molecules binding to proteins """
 
     if prev_output is not None:
         return prev_output
@@ -142,7 +141,7 @@ def download_chembl(desired_db_path, desired_csv_path):
 
         con = get_chembl_con(chembl_db_file)
 
-        chembl_csv_name = get_crossdocked_chembl_activities(desired_csv_path, con)
+        chembl_csv_name = get_chembl_activities(desired_csv_path, con)
 
     # Read the CSV file into a DataFrame
     dataframe = pd.read_csv(desired_csv_path)
