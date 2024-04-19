@@ -1,7 +1,7 @@
 scipy
-biopython
 omegaconf
 pandas
+biopython
 prefect
 pyfaidx
 rdkit

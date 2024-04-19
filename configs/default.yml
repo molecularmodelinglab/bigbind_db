@@ -1,6 +1,5 @@
 data_dir: data
 temp_data_dir: temp_data
-chembl_version: 34
 
 max_table_len: 100
 only_use_complete_uniprots: false

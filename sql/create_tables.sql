@@ -15,7 +15,6 @@ CREATE TABLE `molecules` (
   `num_components` integer,
   `molecular_weight` integer,
   `tanimoto_split` varchar,
-  `chembl_id` varchar,
   CONSTRAINT `smiles_unique` UNIQUE (`smiles`)
 );
 
@@ -24,6 +23,7 @@ CREATE TABLE `activities` (
   `ligand_id` integer,
   `type` varchar,
   `activity` float,
+<<<<<<< HEAD
   `standard_relation` varchar,
   `standard_type` varchar,
   `standard_value` float, 
