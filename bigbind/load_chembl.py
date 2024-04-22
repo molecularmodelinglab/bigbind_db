@@ -10,8 +10,6 @@ from tqdm import tqdm
 import urllib.request
 from pyfaidx import Fasta
 from rdkit import Chem
-from rdkit.Chem.Draw import IPythonConsole
-IPythonConsole.ipython_3d = True
 from rdkit.Chem import rdDepictor
 from rdkit.Chem import rdDistGeom
 import rdkit
@@ -25,6 +23,7 @@ from functools import partial
 import logging
 import signal 
 from concurrent import futures
+from bigbind.config import CONFIG
 
 
 log = logging.getLogger(__name__)
@@ -134,7 +133,7 @@ def download_chembl(desired_db_path, desired_csv_path):
     if not os.path.isfile(desired_csv_path):
         print(f'{desired_csv_path} does not exist, downloading.')
         chembl_tarred = urllib.request.urlretrieve(
-            "https://ftp.ebi.ac.uk/pub/databases/chembl/ChEMBLdb/latest/chembl_33_sqlite.tar.gz",
+            f"https://ftp.ebi.ac.uk/pub/databases/chembl/ChEMBLdb/latest/chembl_{CONFIG.chembl_version}_sqlite.tar.gz",
             "./temp_data/chembl_33_sqlite.tar.gz",
             reporthook
         )[0]
@@ -161,6 +160,9 @@ def gotzinc(molecule):
             return False
     return True
 
+# Example on how loading data into BigBind should work
+# Basically put functions into prefect tasks, especially if
+# they can be called concurrently
 
 def get_conformer(mol, chemblid):
     try:
@@ -188,7 +190,7 @@ def get_conformer(mol, chemblid):
 
 def molecules_sequence_chunk(molecules):
     for index, row in molecules.iterrows():
-        cur_mol = Chem.MolFromSmiles(row["canonical_smiles"])
+        cur_mol = Chem.MolFromSmiles(row["smiles"])
 
         # get molecular weight
         molecules.at[index, "molecular_weight"] = Descriptors.ExactMolWt(cur_mol)
@@ -201,15 +203,17 @@ def molecules_sequence_chunk(molecules):
         Path("data/molecules/conformers").mkdir(parents=True, exist_ok=True)
 
         molecules.at[index, "has_conformer"] = get_conformer(
-            cur_mol, row["compound_chembl_id"]
+            cur_mol, row["chembl_id"]
         )
     return molecules
 
 #@task
 def create_molecules(chembl_df, break_num):
     molecules = pd.DataFrame()
-    molecules = molecules.assign(compound_chembl_id=chembl_df["compound_chembl_id"])
-    molecules = molecules.assign(canonical_smiles=chembl_df["canonical_smiles"])
+    molecules = molecules.assign(chembl_id=chembl_df["compound_chembl_id"])
+    molecules = molecules.assign(smiles=chembl_df["canonical_smiles"])
+    #dropping duplicates 
+    molecules = molecules.drop_duplicates()
 
     # make empty columns
     molecules["molecular_weight"] = -1.0
@@ -237,6 +241,9 @@ def create_molecules(chembl_df, break_num):
     pool.close()
     print("joining pool")
     pool.join()
+    
+    molecules["chembl_id"] = [ int(''.join(c for c in x if c.isdigit())) for x in molecules["chembl_id"]]
+    
 
     return molecules
 
@@ -259,11 +266,13 @@ def extract_id(header):
 def proteins_sequence_chunk(proteins, sequences_complete, sequences_uncomplete):
     for index, row in proteins.iterrows():
 
-        if row["uniprotID"] in sequences_complete:
-            proteins.at[index, "protein_sequence"] = str(sequences_complete[row["uniprotID"]])
+        if row["uniprot"] in sequences_complete:
+            proteins.at[index, "sequence"] = str(sequences_complete[row["uniprot"]])
 
+        elif sequences_uncomplete is not None and row["uniprot"] in sequences_uncomplete:
+            proteins.at[index, "sequence"] = str(sequences_uncomplete[row["uniprot"]])
         else:
-            proteins.at[index, "protein_sequence"] = str(sequences_uncomplete[row["uniprotID"]])
+            proteins.at[index, "sequence"] = "none"
 
     return proteins
 
@@ -284,21 +293,24 @@ def create_proteins(chembl_df, break_num):
     # make proteins Dataframe
     proteins = pd.DataFrame()
     # get ID's
-    proteins = proteins.assign(uniprotID=chembl_df["protein_accession"])
+    proteins = proteins.assign(uniprot=chembl_df["protein_accession"])
     # remove duplicates
     proteins = proteins.drop_duplicates()
     #make it as big as our break_num
     proteins = proteins[:break_num]
 
     # add new column
-    proteins["protein_sequence"] = ""
+    proteins["sequence"] = ""
     print("loading fasta...")
     sequences_complete = Fasta(
         "data/uniprot/uniprot_sprot.fasta", key_function=extract_id
     )
-    sequences_uncomplete = Fasta(
-        "data/uniprot/uniprot_trembl.fasta", key_function=extract_id
-    )
+    if not CONFIG.only_use_complete_uniprots:
+        sequences_uncomplete = Fasta(
+            "data/uniprot/uniprot_trembl.fasta", key_function=extract_id
+        )
+    else:
+        sequences_uncomplete = None
 
     # Job parameters
     n_jobs = mp.cpu_count() // 2  # Poolsize
@@ -314,29 +326,38 @@ def create_proteins(chembl_df, break_num):
     
     
     proteins = pd.concat(result)
-
+    
+    #making sure its in form for sql table
+    # proteins["id"] = [ int(''.join(c for c in x if c.isdigit())) for x in proteins["id"]]
+    # proteins = proteins.drop_duplicates(subset=["id"])
+    proteins = proteins.drop_duplicates(subset=["sequence"])
 
     return proteins
 
-
 #@task
-def create_activites(chembl_df, break_num):
+def create_activities(chembl_df, break_num):
+    #breaking it to number
+    chembl_df = chembl_df[:break_num]
+    
+    
+    
     activities = pd.DataFrame()
     activities = activities.assign(
         # molecules for referance
-        compound_chembl_id=chembl_df["compound_chembl_id"],
-        canonical_smiles=chembl_df["canonical_smiles"],
+        ligand_id=chembl_df["compound_chembl_id"],
         # uniprotid protein reference
-        proteinID=chembl_df["protein_accession"],
+        protein_id=chembl_df["protein_accession"],
         # all the info related to molecule/protein
         standard_type=chembl_df["standard_type"],
         standard_relation=chembl_df["standard_relation"],
         standard_value=chembl_df["standard_value"],
         standard_units=chembl_df["standard_units"],
-        pchembl_value=chembl_df["pchembl_value"],
+        activity=chembl_df["pchembl_value"],
     )
-
-    activities = activities[:break_num]
+    #making sure they only contain numbers
+    activities["ligand_id"] = [ int(''.join(c for c in x if c.isdigit())) for x in activities["ligand_id"]]
+    activities["protein_id"] = [ int(''.join(c for c in x if c.isdigit())) for x in activities["protein_id"]]
+    activities = activities.drop_duplicates()
     return activities
 
 
@@ -344,30 +365,24 @@ def create_activites(chembl_df, break_num):
 def load_chembl():
     print("Starting Main")
 
-    configs = {}
-    with open('configs/default.yml') as info:
-        configs = yaml.safe_load(info)
-
-    max_table_len = configs["max_table_len"]
-
+    max_table_len = CONFIG.max_table_len
+    con = create_connection()
     df = download_chembl("data/chembl/chembl.db", "data/chembl/chembl.csv")
     print("Loading molecules...")
     molecules = create_molecules(df, max_table_len)
-    print("Saving molecules")
+    molecules.to_sql(con=con, name='molecules', schema='SCHEMA', index=False, if_exists='append')
+    # print("Saving molecules")
     # molecules.to_csv("molecules.csv", index=False)
 
     print("Loading proteins...")
     proteins = create_proteins(df, max_table_len)
+    proteins.to_sql(con=con, name='proteins', schema='SCHEMA', index=False, if_exists='append')
     # proteins.to_csv("proteins.csv", index=False)
 
     print("Loading activities...")
-    activites = create_activites(df, max_table_len)
-    # activites.to_csv("activites.csv", index=False)
-
-    con = create_connection()
-    molecules.to_sql(con=con, name='molecules', schema='SCHEMA', index=False, if_exists='append')
-    proteins.to_sql(con=con, name='proteins', schema='SCHEMA', index=False, if_exists='append')
-    activites.to_sql(con=con, name='activites', schema='SCHEMA', index=False, if_exists='append')
+    activities = create_activities(df, max_table_len)
+    # activities.to_csv("activities.csv", index=False)
+    activities.to_sql(con=con, name='activities', schema='SCHEMA', index=False, if_exists='append')
     print("done")
 
 if __name__ == "__main__":

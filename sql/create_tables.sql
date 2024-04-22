@@ -15,6 +15,7 @@ CREATE TABLE `molecules` (
   `num_components` integer,
   `molecular_weight` integer,
   `tanimoto_split` varchar,
+  `chembl_id` varchar,
   CONSTRAINT `smiles_unique` UNIQUE (`smiles`)
 );
 
@@ -23,8 +24,12 @@ CREATE TABLE `activities` (
   `ligand_id` integer,
   `type` varchar,
   `activity` float,
-  FOREIGN KEY (`ligand_id`) REFERENCES `molecules` (`id`),
-  FOREIGN KEY (`protein_id`) REFERENCES `proteins` (`id`)
+  `standard_relation` varchar,
+  `standard_type` varchar,
+  `standard_value` float, 
+  `standard_units` varchar
+  -- FOREIGN KEY (`ligand_id`) REFERENCES `molecules` (`id`),
+  -- FOREIGN KEY (`protein_id`) REFERENCES `proteins` (`id`)
 );
 
 CREATE TABLE `structures` (

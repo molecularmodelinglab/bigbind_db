@@ -2,3 +2,4 @@ data_dir: data
 temp_data_dir: temp_data
 
 max_table_len: 100
+only_use_complete_uniprots: false

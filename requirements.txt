@@ -1,11 +1,8 @@
-biopython
+scipy
 omegaconf
 pandas
-prefect
+biopython
 prefect
 pyfaidx
 rdkit
-sqlite3
 tqdm
-yaml
-biotite
