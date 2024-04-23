@@ -15,6 +15,8 @@ from bigbind.db import create_connection
 from bigbind.config import CONFIG
 from chembl_structure_pipeline import standardizer
 import duckdb
+from bigbind.load_chembl import gotzinc
+from rdkit import RDLogger
 
 def chembl_smiles(bb_smiles):
     std_mol = standardizer.standardize_mol(MolFromSmiles(bb_smiles))
@@ -33,6 +35,12 @@ def proteins_from_cif(file_path):
                     prot_comps.append([list(pdbx_file.keys())[0][0], i, -1, '', poly['pdbx_seq_one_letter_code'],'Protein'])
                 else:
                     prot_comps.append([list(pdbx_file.keys())[0][0], i, -1,'', poly['pdbx_seq_one_letter_code_can'],'Protein'])
+        else:
+            for i in poly['pdbx_strand_id'].split(','):
+                if 'X' in poly['pdbx_seq_one_letter_code_can']:
+                    prot_comps.append([list(pdbx_file.keys())[0][0], i, -1, '', poly['pdbx_seq_one_letter_code'],'Nucleic Acid'])
+                else:
+                    prot_comps.append([list(pdbx_file.keys())[0][0], i, -1,'', poly['pdbx_seq_one_letter_code_can'],'Nucleic Acid'])
     else:
         for p in enumerate(poly['type']):
             if p[1] != 'polydeoxyribonucleotide':
@@ -42,6 +50,13 @@ def proteins_from_cif(file_path):
                         prot_comps.append([list(pdbx_file.keys())[0][0], n, -1,'', poly['pdbx_seq_one_letter_code'][p[0]], 'Protein'])
                     else:
                         prot_comps.append([list(pdbx_file.keys())[0][0], n, -1,'', poly['pdbx_seq_one_letter_code_can'][p[0]], 'Protein'])
+            else:
+                new_chains = poly['pdbx_strand_id'][p[0]].split(",")
+                for n in new_chains:
+                    if 'X' in poly['pdbx_seq_one_letter_code_can'][p[0]]:
+                        prot_comps.append([list(pdbx_file.keys())[0][0], n, -1,'', poly['pdbx_seq_one_letter_code'][p[0]], 'Nucleic Acid'])
+                    else:
+                        prot_comps.append([list(pdbx_file.keys())[0][0], n, -1,'', poly['pdbx_seq_one_letter_code_can'][p[0]], 'Nucleic Acid'])
 
     return prot_comps
 
@@ -179,25 +194,131 @@ def create_structures(dir_path):
     structures = pd.DataFrame(structs_list, columns = ['id','pdb', 'type', 'resolution'])
     return structures
 
-def create_tempcomps(dir_path): # NOT DONE - need to add in dna
+def create_tempcomps(dir_path):
     protcomps = create_protcomps(dir_path)
     ligcomps = create_ligcomps(dir_path)
 
     df = pd.concat([protcomps, ligcomps])
-    df.insert(loc=0, column='id', value=np.arange(len(df)))
-    print(df)
+    df.insert(loc=0, column='id', value=np.arange(1, len(df)+1, dtype=int))
+    
     return(df)
 
 def create_components(dir_path, tempcomps):
-    df = tempcomps
+    df = tempcomps.copy()
     df.drop('smiles', axis=1, inplace=True)
     df.drop('sequence', axis=1, inplace=True)
     return df
 
-def create_ligand_components(tempcomps):
-    df = duckdb.sql("""SELECT id, smiles FROM tempcomps WHERE type = 'Ligand'""").to_df()
+def create_ligand_components(tempcomps, con):
+
+    df = duckdb.sql("SELECT id, smiles FROM tempcomps WHERE type = 'Ligand'").to_df()
+    df.rename(columns={'id':'components_id'},inplace=True)
+    df.insert(1, 'molecule_id', '')
+    RDLogger.DisableLog('rdApp.*')
+    for index, row in df.iterrows(): # room for potential efficiency gains w/ itertuples and such
+        can_smile = chembl_smiles(row['smiles'])
+        cur1 = con.cursor()
+        cur1.execute("SELECT id FROM molecules WHERE smiles = ?",(can_smile,))
+        result = cur1.fetchone()
+        if result != None:
+            df.at[index, 'molecule_id'] = result[0]
+        else:
+            sql = "INSERT INTO molecules(smiles,has_conformer,zinc_elements,num_components,molecular_weight,tanimoto_split,chembl_id) VALUES(?,?,?,?,?,?,?)"
+            values = (can_smile, None, gotzinc(MolFromSmiles(can_smile)), 1, Chem.Descriptors.ExactMolWt(MolFromSmiles(can_smile)), '', '')
+            cur2 = con.cursor()
+            cur2.execute(sql, values)
+            con.commit()
+            cur3 = con.cursor()
+            cur3.execute("SELECT id FROM molecules WHERE smiles =?",(can_smile,))
+            result1 = cur3.fetchone()
+            df.at[index, 'molecule_id'] = result1[0]
+            
+    return df
+
+def create_protein_components(tempcomps, con):
     
-    print(df)
+    df = duckdb.sql("SELECT id, sequence FROM tempcomps WHERE type = 'Protein'").to_df()
+    df.rename(columns={'id':'components_id'},inplace=True)
+    df.insert(1, 'protein_id', '')
+    df.insert(2, 'has_ptms', '')
+    for index, row in df.iterrows():
+        curp = con.cursor()
+        curp.execute("SELECT id FROM proteins WHERE sequence = ?", (row['sequence'],))
+        result = curp.fetchone()
+        if result != None:
+            df.at[index, 'protein_id'] = result[0]
+        else:
+            sql = "INSERT INTO proteins(sequence, uniprot, mutations, sequence_split) VALUES (?,?,?,?)"
+            values = (row['sequence'], '','','')
+            curp1 = con.cursor()
+            curp1.execute(sql, values)
+            con.commit()
+            curp2 = con.cursor()
+            curp2.execute("SELECT id FROM proteins WHERE sequence = ?", (row['sequence'],))
+            result1 = curp2.fetchone()
+            df.at[index, 'protein_id'] = result1[0]
+    df.drop('sequence', axis=1, inplace=True)
+    return df
+
+def find_covalent_attachments(dir_path, con):
+    #df = pd.DataFrame(columns=['component_1_id', 'component_2_id'])
+    bases=['DA','DT','DG','DC','DU']
+    aminos = ['PTR','VAL', 'ILE', 'LEU', 'GLU', 'GLN', 'ASP', 'ASN', 'HIS', 'TRP', 'PHE', 'TYR', 'ARG', 'LYS', 'SER', 'THR', 'MET', 'ALA', 'GLY', 'PRO', 'CYS']
+    for x in os.listdir(dir_path):
+        filepath = os.path.join(dir_path, x)
+        pdbx_file = pdbx.PDBxFile.read(filepath)
+        pdbid = pdbx_file.get('exptl')['entry_id']
+        if 'struct_conn' in pdbx_file.keys():
+            d = pdbx_file.get('struct_conn')
+            for y in enumerate(d['conn_type_id']):
+                if y[1] == 'covale':
+                    c1chain = d['ptnr1_auth_asym_id'][y[0]]
+                    c1id = d['ptnr1_auth_seq_id'][y[0]]
+                    c1res =d['ptnr1_auth_comp_id'][y[0]]
+                    c2chain = d['ptnr2_auth_asym_id'][y[0]]
+                    c2id = d['ptnr2_auth_seq_id'][y[0]]
+                    c2res =d['ptnr2_auth_comp_id'][y[0]]
+                    
+                    curc1 = con.cursor()
+                    if c1res in aminos:
+                        c1type = "Protein"
+                        curc1.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND type = ?', (pdbid, c1chain, c1type))
+                        result1 = curc1.fetchone()[0]
+                    elif c1res in bases:
+                        c1type = "Nucleic Acid"
+                        curc1.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND type = ?', (pdbid, c1chain, c1type))
+                        result1 = curc1.fetchone()[0]
+                    else:
+                        c1type = "Ligand"
+                        curc1.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND residue = ? AND type = ?', (pdbid, c1chain, c1id, c1type))
+                        #print(pdbid, c1chain, c1id, c1type)
+                        result1 = curc1.fetchone()[0]
+                    
+                    curc2 = con.cursor()
+                    if c2res in aminos:
+                        c2type = "Protein"
+                        curc2.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND type = ?', (pdbid, c2chain, c2type))
+                        result2 = curc2.fetchone()[0]
+                    elif c2res in bases:
+                        c2type = "Nucleic Acid"
+                        curc2.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND type = ?', (pdbid, c2chain, c2type))
+                        result2 = curc2.fetchone()[0]
+                    else:
+                        c2type = "Ligand"
+                        curc2.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND residue = ? AND type = ?', (pdbid, c2chain, c2id, c2type))
+                        print(pdbid, c2chain, c2id, c2type)
+                        result2 = curc2.fetchone()[0]
+                        
+                    
+                    curs = con.cursor()
+                    sql = "INSERT INTO covalent_attachments(component_1_id, component_2_id) VALUES (?, ?)"
+                    values = (int(result1), int(result2))
+                    print(values)
+                    curs.execute(sql, values)
+                    con.commit()
+
+                        
+
 
 def load_pdb():
 
@@ -205,23 +326,24 @@ def load_pdb():
 
     con = create_connection()
     cur = con.cursor()
-    
-    #protein_components = create_protcomps(pdbs)
 
-    #ligand_components = create_ligcomps(pdbs)
+    
 
     structures = create_structures(pdbs)
     temp_comps = create_tempcomps(pdbs)
-    #components = create_components(pdbs, temp_comps)
+    components = create_components(pdbs, temp_comps)
 
-    create_ligand_components(temp_comps)
+    ligand_components = create_ligand_components(temp_comps, con)
+    protein_components = create_protein_components(temp_comps, con)
 
     
 
     structures.to_sql(con=con, name='structures', schema='SCHEMA', index=False, if_exists='replace')
-    #components.to_sql(con=con, name='components', schema='SCHEMA', index=False, if_exists='replace')
-    #protein_components.to_sql(con=con, name='protein_components', schema='SCHEMA', index=False, if_exists='append')
-    #ligand_components.to_sql(con=con, name='ligand_components', schema='SCHEMA', index=False, if_exists='append')
+    components.to_sql(con=con, name='components', schema='SCHEMA', index=False, if_exists='replace')
+    protein_components.to_sql(con=con, name='protein_components', schema='SCHEMA', index=False, if_exists='replace')
+    ligand_components.to_sql(con=con, name='ligand_components', schema='SCHEMA', index=False, if_exists='replace')
+
+    find_covalent_attachments(pdbs, con)
 
     #cur.execute("SELECT * FROM components")
     #result = cur.fetchall()
