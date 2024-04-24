@@ -33,7 +33,7 @@ CREATE TABLE `activities` (
 );
 
 CREATE TABLE `structures` (
-  `id` integer PRIMARY KEY,
+  `id` varchar PRIMARY KEY,
   `pdb` varchar,
   `type` varchar,
   `resolution` float,
@@ -42,9 +42,9 @@ CREATE TABLE `structures` (
 
 CREATE TABLE `components` (
   `id` integer PRIMARY KEY,
-  `structure_id` integer,
+  `structure_id` varchar,
   `chain` varchar,
-  `residue` varchar,
+  `residue` integer,
   `type` varchar,
   FOREIGN KEY (`structure_id`) REFERENCES `structures` (`id`),
   CONSTRAINT `chain_residue_unique` UNIQUE (`structure_id`, `chain`, `residue`)
@@ -68,9 +68,9 @@ CREATE TABLE `ligand_components` (
 
 CREATE TABLE `covalent_attachments` (
   `component_1_id` integer,
-  `component_2_id` integer,
-  FOREIGN KEY (`component_1_id`) REFERENCES `components` (`id`),
-  FOREIGN KEY (`component_2_id`) REFERENCES `components` (`id`)
+  `component_2_id` integer
+  --FOREIGN KEY (`component_1_id`) REFERENCES `components` (`id`),
+  --FOREIGN KEY (`component_2_id`) REFERENCES `components` (`id`)
 );
 
 CREATE TABLE `binding_sites` (
