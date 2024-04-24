@@ -262,7 +262,7 @@ def create_protein_components(tempcomps, con):
 
 def find_covalent_attachments(dir_path, con):
     #df = pd.DataFrame(columns=['component_1_id', 'component_2_id'])
-    bases=['DA','DT','DG','DC','DU']
+    dnathings=['DA','DT','DG','DC','DU', 'TGP', '8OG']
     aminos = ['PTR','VAL', 'ILE', 'LEU', 'GLU', 'GLN', 'ASP', 'ASN', 'HIS', 'TRP', 'PHE', 'TYR', 'ARG', 'LYS', 'SER', 'THR', 'MET', 'ALA', 'GLY', 'PRO', 'CYS']
     for x in os.listdir(dir_path):
         filepath = os.path.join(dir_path, x)
@@ -284,14 +284,14 @@ def find_covalent_attachments(dir_path, con):
                         c1type = "Protein"
                         curc1.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND type = ?', (pdbid, c1chain, c1type))
                         result1 = curc1.fetchone()[0]
-                    elif c1res in bases:
+                    elif c1res in dnathings:
                         c1type = "Nucleic Acid"
                         curc1.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND type = ?', (pdbid, c1chain, c1type))
                         result1 = curc1.fetchone()[0]
                     else:
                         c1type = "Ligand"
                         curc1.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND residue = ? AND type = ?', (pdbid, c1chain, c1id, c1type))
-                        #print(pdbid, c1chain, c1id, c1type)
+                        print(pdbid, c1chain, c1res, c1id, c1type)
                         result1 = curc1.fetchone()[0]
                     
                     curc2 = con.cursor()
@@ -299,14 +299,14 @@ def find_covalent_attachments(dir_path, con):
                         c2type = "Protein"
                         curc2.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND type = ?', (pdbid, c2chain, c2type))
                         result2 = curc2.fetchone()[0]
-                    elif c2res in bases:
+                    elif c2res in dnathings:
                         c2type = "Nucleic Acid"
                         curc2.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND type = ?', (pdbid, c2chain, c2type))
                         result2 = curc2.fetchone()[0]
                     else:
                         c2type = "Ligand"
                         curc2.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND residue = ? AND type = ?', (pdbid, c2chain, c2id, c2type))
-                        print(pdbid, c2chain, c2id, c2type)
+                        print(pdbid, c2chain, c2res, c2id, c2type)
                         result2 = curc2.fetchone()[0]
                         
                     
@@ -315,9 +315,7 @@ def find_covalent_attachments(dir_path, con):
                     values = (int(result1), int(result2))
                     print(values)
                     curs.execute(sql, values)
-                    con.commit()
-
-                        
+                    con.commit()       
 
 
 def load_pdb():
@@ -343,7 +341,7 @@ def load_pdb():
     protein_components.to_sql(con=con, name='protein_components', schema='SCHEMA', index=False, if_exists='replace')
     ligand_components.to_sql(con=con, name='ligand_components', schema='SCHEMA', index=False, if_exists='replace')
 
-    find_covalent_attachments(pdbs, con)
+    #find_covalent_attachments(pdbs, con)
 
     #cur.execute("SELECT * FROM components")
     #result = cur.fetchall()

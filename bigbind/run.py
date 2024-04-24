@@ -8,7 +8,7 @@ from bigbind.load_pdb import load_pdb
 # @flow
 def make_bigbind():
     create_tables()
-    #load_chembl()
+    load_chembl()
     #load_tanimoto_matrix()
     load_pdb()
 
