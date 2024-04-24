@@ -1,3 +1,4 @@
+from glob import glob
 import biotite.structure.io.pdbx as pdbx
 import numpy as np
 import pandas as pd
@@ -62,8 +63,7 @@ def proteins_from_cif(file_path):
 
 def create_protcomps(dir_path):
     prots = []
-    for x in os.listdir(dir_path):
-        path1 = os.path.join(dir_path, x)
+    for path1 in glob(dir_path + "/*/*.cif.gz"):
         singleprot = proteins_from_cif(path1)
         if singleprot != None:
             for m in singleprot:
@@ -325,7 +325,7 @@ def load_pdb():
     con = create_connection()
     cur = con.cursor()
 
-    
+    pdbs = CONFIG.pdb_dir
 
     structures = create_structures(pdbs)
     temp_comps = create_tempcomps(pdbs)
