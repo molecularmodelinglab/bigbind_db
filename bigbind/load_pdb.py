@@ -23,7 +23,7 @@ def chembl_smiles(bb_smiles):
     std_mol = standardizer.standardize_mol(MolFromSmiles(bb_smiles))
     return MolToSmiles(std_mol)
 
-def proteins_from_cif(file_path):
+def proteins_from_cif(file_path): # this actually grabs all polymers -- both proteins and nucleic acids
     pdbx_file = pdbx.PDBxFile.read(file_path)
     poly = pdbx_file.get('entity_poly')
 
@@ -61,7 +61,7 @@ def proteins_from_cif(file_path):
 
     return prot_comps
 
-def create_protcomps(dir_path):
+def create_protcomps(dir_path): # actually makes df of both proteins and polymers
     prots = []
     for path1 in glob(dir_path + "/*/*.cif.gz"):
         singleprot = proteins_from_cif(path1)
@@ -168,8 +168,7 @@ def cif_to_mols(file_path):
 
 def create_ligcomps(dir_path):
     mols = []
-    for x in os.listdir(dir_path):
-        path1 = os.path.join(dir_path, x)
+    for path1 in glob(dir_path + "/*/*.cif.gz"):
         singlelig = cif_to_mols(path1)
         if singlelig != None:
             for m in singlelig:
@@ -181,8 +180,7 @@ def create_ligcomps(dir_path):
 
 def create_structures(dir_path):
     structs_list = []
-    for x in os.listdir(dir_path):
-        path1 = os.path.join(dir_path, x)
+    for path1 in glob(dir_path + "/*/*.cif.gz"):
         pdbx_file = pdbx.PDBxFile.read(path1)
         pdbid = pdbx_file.get('exptl')['entry_id']
         expmethod = pdbx_file.get('exptl')['method']
@@ -261,12 +259,10 @@ def create_protein_components(tempcomps, con):
     return df
 
 def find_covalent_attachments(dir_path, con):
-    #df = pd.DataFrame(columns=['component_1_id', 'component_2_id'])
     dnathings=['DA','DT','DG','DC','DU', 'TGP', '8OG']
     aminos = ['PTR','VAL', 'ILE', 'LEU', 'GLU', 'GLN', 'ASP', 'ASN', 'HIS', 'TRP', 'PHE', 'TYR', 'ARG', 'LYS', 'SER', 'THR', 'MET', 'ALA', 'GLY', 'PRO', 'CYS']
-    for x in os.listdir(dir_path):
-        filepath = os.path.join(dir_path, x)
-        pdbx_file = pdbx.PDBxFile.read(filepath)
+    for path1 in glob(dir_path + "/*/*.cif.gz"):
+        pdbx_file = pdbx.PDBxFile.read(path1)
         pdbid = pdbx_file.get('exptl')['entry_id']
         if 'struct_conn' in pdbx_file.keys():
             d = pdbx_file.get('struct_conn')
@@ -319,8 +315,6 @@ def find_covalent_attachments(dir_path, con):
 
 
 def load_pdb():
-
-    pdbs = "C:\\Users\\anees\\Downloads\\randomfolder1" # change to whatever path of cifs is later
 
     con = create_connection()
     cur = con.cursor()
