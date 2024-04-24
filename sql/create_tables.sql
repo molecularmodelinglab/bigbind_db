@@ -69,6 +69,8 @@ CREATE TABLE `ligand_components` (
 CREATE TABLE `covalent_attachments` (
   `component_1_id` integer,
   `component_2_id` integer
+  --FOREIGN KEY (`component_1_id`) REFERENCES `components` (`id`),
+  --FOREIGN KEY (`component_2_id`) REFERENCES `components` (`id`)
 );
 
 CREATE TABLE `binding_sites` (
