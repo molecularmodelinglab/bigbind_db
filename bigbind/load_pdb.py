@@ -63,7 +63,7 @@ def proteins_from_cif(file_path): # this actually grabs all polymers -- both pro
 
 def create_protcomps(dir_path): # actually makes df of both proteins and polymers
     prots = []
-    for path1 in glob(dir_path + "/*/*.cif.gz"):
+    for path1 in glob(dir_path + "/*/*.cif"): # add .gz back later for highgarden support
         singleprot = proteins_from_cif(path1)
         if singleprot != None:
             for m in singleprot:
@@ -168,7 +168,7 @@ def cif_to_mols(file_path):
 
 def create_ligcomps(dir_path):
     mols = []
-    for path1 in glob(dir_path + "/*/*.cif.gz"):
+    for path1 in glob(dir_path + "/*/*.cif"): # add in .gz later for highgarden support
         singlelig = cif_to_mols(path1)
         if singlelig != None:
             for m in singlelig:
@@ -180,7 +180,7 @@ def create_ligcomps(dir_path):
 
 def create_structures(dir_path):
     structs_list = []
-    for path1 in glob(dir_path + "/*/*.cif.gz"):
+    for path1 in glob(dir_path + "/*/*.cif"): # add in .gz later for highgarden support
         pdbx_file = pdbx.PDBxFile.read(path1)
         pdbid = pdbx_file.get('exptl')['entry_id']
         expmethod = pdbx_file.get('exptl')['method']
@@ -259,9 +259,7 @@ def create_protein_components(tempcomps, con):
     return df
 
 def find_covalent_attachments(dir_path, con):
-    dnathings=['DA','DT','DG','DC','DU', 'TGP', '8OG']
-    aminos = ['PTR','VAL', 'ILE', 'LEU', 'GLU', 'GLN', 'ASP', 'ASN', 'HIS', 'TRP', 'PHE', 'TYR', 'ARG', 'LYS', 'SER', 'THR', 'MET', 'ALA', 'GLY', 'PRO', 'CYS']
-    for path1 in glob(dir_path + "/*/*.cif.gz"):
+    for path1 in glob(dir_path + "/*/*.cif"): # add .gz later for highgarden support
         pdbx_file = pdbx.PDBxFile.read(path1)
         pdbid = pdbx_file.get('exptl')['entry_id']
         if 'struct_conn' in pdbx_file.keys():
@@ -276,42 +274,33 @@ def find_covalent_attachments(dir_path, con):
                     c2res =d['ptnr2_auth_comp_id'][y[0]]
                     
                     curc1 = con.cursor()
-                    if c1res in aminos:
-                        c1type = "Protein"
-                        curc1.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND type = ?', (pdbid, c1chain, c1type))
-                        result1 = curc1.fetchone()[0]
-                    elif c1res in dnathings:
-                        c1type = "Nucleic Acid"
-                        curc1.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND type = ?', (pdbid, c1chain, c1type))
-                        result1 = curc1.fetchone()[0]
+                    curc1.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND residue = ?', (pdbid, c1chain, c1id))
+                    result1 = curc1.fetchone()
+                    if result1 != None:
+                        ptnr1 = result1[0]
                     else:
-                        c1type = "Ligand"
-                        curc1.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND residue = ? AND type = ?', (pdbid, c1chain, c1id, c1type))
-                        print(pdbid, c1chain, c1res, c1id, c1type)
-                        result1 = curc1.fetchone()[0]
+                        curc11 = con.cursor()
+                        curc11.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND type != ?', (pdbid, c1chain, 'Ligand'))
+                        ptnr1 = curc11.fetchone()[0]
                     
                     curc2 = con.cursor()
-                    if c2res in aminos:
-                        c2type = "Protein"
-                        curc2.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND type = ?', (pdbid, c2chain, c2type))
-                        result2 = curc2.fetchone()[0]
-                    elif c2res in dnathings:
-                        c2type = "Nucleic Acid"
-                        curc2.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND type = ?', (pdbid, c2chain, c2type))
-                        result2 = curc2.fetchone()[0]
+                    curc2.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND residue = ?', (pdbid, c2chain, c2id))
+                    result2 = curc2.fetchone()
+                    if result2 != None:
+                        ptnr2 = result2[0]
                     else:
-                        c2type = "Ligand"
-                        curc2.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND residue = ? AND type = ?', (pdbid, c2chain, c2id, c2type))
-                        print(pdbid, c2chain, c2res, c2id, c2type)
-                        result2 = curc2.fetchone()[0]
-                        
+                        curc22 = con.cursor()
+                        curc22.execute('SELECT id FROM components WHERE structure_id = ? AND chain = ? AND type != ?', (pdbid, c2chain, 'Ligand'))
+                        ptnr2 = curc22.fetchone()[0]
                     
-                    curs = con.cursor()
                     sql = "INSERT INTO covalent_attachments(component_1_id, component_2_id) VALUES (?, ?)"
-                    values = (int(result1), int(result2))
-                    print(values)
-                    curs.execute(sql, values)
-                    con.commit()       
+                    values = (int(ptnr1), int(ptnr2))
+                    if values[0] != values[1]:
+                        curs = con.cursor()
+                        curs.execute(sql, values)
+                        con.commit() 
+                    else:
+                        continue      
 
 
 def load_pdb():
@@ -335,13 +324,8 @@ def load_pdb():
     protein_components.to_sql(con=con, name='protein_components', schema='SCHEMA', index=False, if_exists='replace')
     ligand_components.to_sql(con=con, name='ligand_components', schema='SCHEMA', index=False, if_exists='replace')
 
-    #find_covalent_attachments(pdbs, con)
+    find_covalent_attachments(pdbs, con)
 
-    #cur.execute("SELECT * FROM components")
-    #result = cur.fetchall()
-    #for row in result: 
-    #    print(row) 
-    #    print("\n") 
 
 
 if __name__ == "__main__":
