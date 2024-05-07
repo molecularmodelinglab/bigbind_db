@@ -24,6 +24,7 @@ import logging
 import signal 
 from concurrent import futures
 from bigbind.config import CONFIG
+import numpy as np
 
 
 log = logging.getLogger(__name__)
@@ -239,7 +240,7 @@ def create_molecules(chembl_df, break_num):
     print("joining pool")
     pool.join()
     
-    molecules["id"] = [ int(''.join(c for c in x if c.isdigit())) for x in molecules["id"]]
+    molecules["id"] = np.arange(0, molecules.shape[0], 1)
     
 
     return molecules
@@ -263,11 +264,11 @@ def extract_id(header):
 def proteins_sequence_chunk(proteins, sequences_complete, sequences_uncomplete):
     for index, row in proteins.iterrows():
 
-        if row["id"] in sequences_complete:
-            proteins.at[index, "sequence"] = str(sequences_complete[row["id"]])
+        if row["uniprot"] in sequences_complete:
+            proteins.at[index, "sequence"] = str(sequences_complete[row["uniprot"]])
 
-        elif row["id"] in sequences_uncomplete:
-            proteins.at[index, "sequence"] = str(sequences_uncomplete[row["id"]])
+        elif row["uniprot"] in sequences_uncomplete:
+            proteins.at[index, "sequence"] = str(sequences_uncomplete[row["uniprot"]])
         else:
             proteins.at[index, "sequence"] = "none"
 
@@ -290,7 +291,7 @@ def create_proteins(chembl_df, break_num):
     # make proteins Dataframe
     proteins = pd.DataFrame()
     # get ID's
-    proteins = proteins.assign(id=chembl_df["protein_accession"])
+    proteins = proteins.assign(uniprot=chembl_df["protein_accession"])
     # remove duplicates
     proteins = proteins.drop_duplicates()
     #make it as big as our break_num
@@ -302,6 +303,7 @@ def create_proteins(chembl_df, break_num):
     sequences_complete = Fasta(
         "data/uniprot/uniprot_sprot.fasta", key_function=extract_id
     )
+    
     sequences_uncomplete = Fasta(
         "data/uniprot/uniprot_trembl.fasta", key_function=extract_id
     )
@@ -320,17 +322,16 @@ def create_proteins(chembl_df, break_num):
     
     
     proteins = pd.concat(result)
+    proteins = proteins.drop_duplicates(subset=["sequence"])
     
     #making sure its in form for sql table
-    proteins["id"] = [ int(''.join(c for c in x if c.isdigit())) for x in proteins["id"]]
-    proteins = proteins.drop_duplicates(subset=["id"])
-    proteins = proteins.drop_duplicates(subset=["sequence"])
+    proteins["id"] = np.arange(0, proteins.shape[0], 1)
 
     return proteins
 
 
 #@task
-def create_activities(chembl_df, break_num):
+def create_activities(chembl_df, break_num, proteins, molecules):
     #breaking it to number
     chembl_df = chembl_df[:break_num]
     
@@ -339,9 +340,9 @@ def create_activities(chembl_df, break_num):
     activities = pd.DataFrame()
     activities = activities.assign(
         # molecules for referance
-        ligand_id=chembl_df["compound_chembl_id"],
+        chembl_id=chembl_df["compound_chembl_id"],
         # uniprotid protein reference
-        protein_id=chembl_df["protein_accession"],
+        uniprot=chembl_df["protein_accession"],
         # all the info related to molecule/protein
         standard_type=chembl_df["standard_type"],
         standard_relation=chembl_df["standard_relation"],
@@ -349,10 +350,14 @@ def create_activities(chembl_df, break_num):
         standard_units=chembl_df["standard_units"],
         activity=chembl_df["pchembl_value"],
     )
-    #making sure they only contain numbers
-    activities["ligand_id"] = [ int(''.join(c for c in x if c.isdigit())) for x in activities["ligand_id"]]
-    activities["protein_id"] = [ int(''.join(c for c in x if c.isdigit())) for x in activities["protein_id"]]
     activities = activities.drop_duplicates()
+    
+    #getting indexes from other tables
+    activities = activities.merge(molecules[["id","chembl_id"]], on='chembl_id', how='left')
+    activities = activities.rename({'id':'ligand_id'}, axis='columns')
+    activities = activities.merge(proteins[["id","uniprot"]], on='uniprot', how='left')
+    activities = activities.rename({'id':'protein_id'}, axis='columns')
+    activities = activities.drop(columns=['chembl_id', 'uniprot'])
     return activities
 
 
@@ -375,7 +380,7 @@ def load_chembl():
     # proteins.to_csv("proteins.csv", index=False)
 
     print("Loading activities...")
-    activities = create_activities(df, max_table_len)
+    activities = create_activities(df, max_table_len, proteins, molecules)
     # activities.to_csv("activities.csv", index=False)
     activities.to_sql(con=con, name='activities', schema='SCHEMA', index=False, if_exists='append')
     print("done")
